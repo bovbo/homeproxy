@@ -37,15 +37,23 @@ const allow_insecure = uci.get(uciconfig, ucisubscription, 'allow_insecure') || 
       user_agent = uci.get(uciconfig, ucisubscription, 'user_agent'),
       via_proxy = uci.get(uciconfig, ucisubscription, 'update_via_proxy') || '0';
 
-const requested_group_hash = (length(ARGV) === 2 && ARGV[0] === '--group') ? ARGV[1] : null;
-const invalid_group_argument = length(ARGV) > 0 &&
-	(length(ARGV) !== 2 || ARGV[0] !== '--group' || !match(ARGV[1], /^[0-9a-f]{32}$/));
+const has_group_filter = length(ARGV) > 0;
+const requested_group_hashes = {};
+let invalid_group_argument = false;
+for (let i=0;i<length(ARGV);i++) {
+	if (!match(ARGV[i], /^[0-9a-f]{32}$/)) invalid_group_argument=true;
+	else requested_group_hashes[ARGV[i]]=true;
+}
 const update_subscription_urls = [];
+const matched_group_hashes = {};
 if (!invalid_group_argument) {
-	for (let i = 0; i < length(subscription_urls); i++) {
-		const candidate_url = replace(subscription_urls[i], /#.*$/, '');
-		if (!requested_group_hash || md5(candidate_url) === requested_group_hash)
-			push(update_subscription_urls, subscription_urls[i]);
+	for(let i=0;i<length(subscription_urls);i++) {
+		const candidate_url=replace(subscription_urls[i], /#.*$/, '');
+		const group_hash=md5(candidate_url);
+		if(!has_group_filter || requested_group_hashes[group_hash]) {
+			push(update_subscription_urls,subscription_urls[i]);
+			matched_group_hashes[group_hash]=true;
+		}
 	}
 }
 
@@ -781,7 +789,7 @@ function main() {
 
 		/* A scheduled single-group refresh must never touch nodes belonging to
 		 * any other subscription. Full refreshes retain the existing cleanup logic. */
-		if (requested_group_hash && cfg.grouphash !== requested_group_hash)
+		if (has_group_filter && !requested_group_hashes[cfg.grouphash])
 			return null;
 
 		/* A configured subscription that failed to fetch/parse keeps its
@@ -872,16 +880,28 @@ if (invalid_group_argument) {
 	exit(2);
 }
 
+if (invalid_group_argument) {
+	progress('FAILED: arguments must be one or more 32-character subscription MD5 hashes.');
+	exit(2);
+}
 if (isEmpty(update_subscription_urls)) {
-	if (requested_group_hash) {
-		log(sprintf('No subscription URL matches group %s.', requested_group_hash));
-		progress('FAILED: the scheduled subscription group no longer exists.');
+	if (has_group_filter) {
+		log('No subscription URL matches the requested subscription group hash list.');
+		progress('FAILED: none of the requested subscription groups exists.');
 		exit(1);
 	}
-
 	log('No subscription URL configured; skipping subscription update.');
 	progress('SKIPPED: no subscription URL configured.');
 	exit(0);
+}
+if (has_group_filter) {
+	for(let hash in requested_group_hashes) {
+		if(!(hash in matched_group_hashes)) {
+			log(sprintf('Requested subscription group %s was not found.',hash));
+			progress(sprintf('FAILED: subscription group %s no longer exists.',hash));
+			exit(1);
+		}
+	}
 }
 
 try {

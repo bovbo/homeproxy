@@ -10,16 +10,85 @@
 'require rpc';
 'require uci';
 'require ui';
+'require dom';
 'require view';
 
 'require homeproxy as hp';
 'require tools.widgets as widgets';
+
+const HP_SETTINGS_CARD_CSS="\n.hp-settings-cards .hp-field-grid{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(min(100%,245px),285px));justify-content:start;align-items:stretch;gap:13px}\n.hp-settings-cards .hp-field-grid>:not(.cbi-value){grid-column:1/-1}\n.hp-settings-cards .hp-field-grid>.cbi-value{box-sizing:border-box;min-width:0;min-height:158px;margin:0!important;padding:14px 15px!important;display:flex;flex-direction:column;align-items:stretch;border:2px solid var(--border-color-medium,#737373)!important;border-radius:11px!important;background:var(--background-color-high,var(--background-color,#fff))!important;box-shadow:0 2px 7px rgba(0,0,0,.15)}\n.hp-settings-cards .hp-field-grid>.cbi-value:hover{border-color:var(--primary-color-high,#1769aa)!important;box-shadow:0 4px 11px rgba(0,0,0,.21)}\n.hp-settings-cards .cbi-value-title{float:none!important;width:auto!important;max-width:none!important;margin:0 0 10px!important;padding:0!important;font-weight:850!important;line-height:1.4;overflow-wrap:anywhere}\n.hp-settings-cards .cbi-value-field{float:none!important;width:auto!important;max-width:none!important;min-width:0;margin:0!important;padding:0!important;flex:1 1 auto}\n.hp-settings-cards .cbi-value-description{margin-top:10px!important;padding:8px 10px;border-left:3px solid var(--primary-color-high,#777);border-radius:5px;background:rgba(128,128,128,.10);line-height:1.45}\n.hp-settings-cards input:not([type=checkbox]):not([type=radio]),.hp-settings-cards select,.hp-settings-cards textarea{box-sizing:border-box;width:100%;max-width:100%;min-height:38px;border:2px solid var(--border-color-medium,#737373)!important;border-radius:7px!important;background:var(--background-color,#fff)!important;color:var(--text-color,inherit)!important}\n.hp-settings-cards textarea{min-height:115px}\n.hp-settings-cards input:not([type=checkbox]):not([type=radio]):focus,.hp-settings-cards select:focus,.hp-settings-cards textarea:focus{border-color:var(--primary-color-high,#1769aa)!important;outline:2px solid rgba(23,105,170,.25);outline-offset:1px}\n.hp-settings-cards .cbi-button,.hp-settings-cards button,.hp-settings-cards input[type=button],.hp-settings-cards input[type=submit]{min-height:36px;border-width:2px!important;border-radius:8px!important;font-weight:800}\n.hp-settings-cards .cbi-tabmenu>li>a{margin:3px;border:2px solid var(--border-color-medium,#737373);border-radius:8px;font-weight:800}\n.hp-settings-cards .cbi-tabmenu>li.cbi-tab>a{border-color:var(--primary-color-high,#1769aa);background:var(--primary-color-high,#1769aa);color:#fff}\n@media(max-width:680px){.hp-settings-cards .hp-field-grid{grid-template-columns:minmax(0,1fr)}.hp-settings-cards .hp-field-grid>.cbi-value{min-height:132px}}\n";
+function injectSettingsCardSkin(root){
+ if(!root||!root.querySelectorAll)return root;
+ root.classList?.add('hp-settings-cards');
+ root.querySelectorAll('.cbi-section').forEach((section)=>{
+  if(Array.from(section.children).some((child)=>child.classList?.contains('cbi-value')))section.classList.add('hp-field-grid');
+ });
+ let style=document.getElementById('hp-settings-card-css');
+ if(!style){style=E('style',{'id':'hp-settings-card-css'});document.head.appendChild(style);}
+ style.textContent=HP_SETTINGS_CARD_CSS;
+ return root;
+}
+
 
 const callSubscriptionLogTail = rpc.declare({
 	object: 'luci.homeproxy',
 	method: 'subscription_log_tail',
 	expect: { '': {} }
 });
+
+
+const HP_WEEK_CSS=`
+.hp-week{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.hp-chip{box-sizing:border-box;min-width:58px;text-align:center;padding:7px 13px;border:2px solid rgba(90,90,90,.82);border-radius:8px;cursor:pointer;user-select:none;font-weight:800;background:rgba(128,128,128,.10);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.hp-chip:hover{border-color:var(--primary-color-high,#1769aa)}
+.hp-chip.on{border:2px solid var(--primary-color-high,#1769aa);background:var(--primary-color-high,#1769aa);color:#fff;box-shadow:0 2px 7px rgba(0,0,0,.22)}
+.hp-week .hp-btn{cursor:pointer;padding:5px 13px;line-height:22px;border-radius:7px;border:2px solid rgba(90,90,90,.75);background:rgba(128,128,128,.14);color:inherit;font-weight:800}
+`;
+const UIWeekPicker=ui.AbstractElement.extend({
+ __init(value,choices,options){this.options=options||{};this.choices=choices||{};this.order=this.options.order||Object.keys(this.choices);this.selected=new Set(L.toArray(value).map(String).filter((v)=>(v in this.choices)));},
+ getValue(){return this.order.filter((id)=>this.selected.has(id));},
+ setValue(value){this.selected=new Set(L.toArray(value).map(String).filter((v)=>(v in this.choices)));this.refresh();},
+ notify(){this.node.setAttribute('data-changed','true');this.node.dispatchEvent(new CustomEvent('widget-change',{bubbles:true}));},
+ refresh(){this.chips.forEach((el,id)=>el.classList.toggle('on',this.selected.has(id)));},
+ render(){
+  if(!document.getElementById('hp-week-css'))document.head.appendChild(E('style',{'id':'hp-week-css'},HP_WEEK_CSS));
+  this.chips=new Map();const frame=E('div',{'class':'hp-week','id':this.options.id});
+  this.order.forEach((id)=>{
+   const chip=E('div',{'class':'hp-chip','click':()=>{
+    if(this.selected.has(id))this.selected.delete(id);else this.selected.add(id);
+    this.refresh();this.notify();
+   }},this.choices[id]);
+   this.chips.set(id,chip);frame.appendChild(chip);
+  });
+  frame.appendChild(E('button',{'type':'button','class':'hp-btn','click':()=>{this.order.forEach((id)=>this.selected.add(id));this.refresh();this.notify();}},'每天'));
+  frame.appendChild(E('button',{'type':'button','class':'hp-btn','click':()=>{this.selected.clear();this.refresh();this.notify();}},'清空'));
+  this.node=frame;dom.bindClassInstance(frame,this);this.refresh();return frame;
+ }
+});
+function useWeekPicker(opt){
+ opt.renderWidget=function(section_id,option_index,cfgvalue){
+  return new UIWeekPicker(L.toArray((cfgvalue!=null)?cfgvalue:this.default),this.transformChoices(),{id:this.cbid(section_id),order:['1','2','3','4','5','6','0']}).render();
+ };
+}
+const callSubUpdateStart=rpc.declare({object:'luci.homeproxy',method:'resources_update_start',params:['type'],expect:{'':{}}});
+const callSubUpdateStatus=rpc.declare({object:'luci.homeproxy',method:'resources_update_status',params:['type'],expect:{'':{}}});
+function runSubUpdate(type,btn,map){
+ if(btn)btn.disabled=true;
+ const release=()=>{if(btn)btn.disabled=false;};
+ return Promise.resolve(map?map.save(null,true):null).then(()=>ui.changes.apply(true))
+ .then(()=>callSubUpdateStart(type)).then((res)=>{
+  if(!res?.result){ui.addNotification(null,E('p','无法启动后台更新：%s'.format(res?.error||'未知错误')));release();return;}
+  ui.addNotification(null,E('p','已提交订阅更新任务；多个订阅同时到点时会排队执行。'));
+  let tries=0;const tick=()=>{
+   tries++;callSubUpdateStatus(type).then((status)=>{
+    if(status?.state==='success'){ui.addNotification(null,E('p','订阅更新完成，正在刷新节点列表。'));location.reload();}
+    else if(status?.state==='error'){ui.addNotification(null,E('p','订阅更新失败：%s'.format(status?.message||'详情见 HomeProxy 日志')));release();}
+    else if(tries<600)setTimeout(tick,3000);
+    else{ui.addNotification(null,E('p','更新仍在排队或后台运行；稍后刷新查看结果。'));release();}
+   }).catch(()=>{if(tries<600)setTimeout(tick,5000);else release();});
+  };setTimeout(tick,3000);
+ }).catch((err)=>{ui.addNotification(null,E('p',_('An error occurred during updating subscriptions: %s').format(err)));release();});
+}
 
 function allowInsecureConfirm(ev, _section_id, value) {
 	if (value === '1' && !confirm(_('Are you sure to allow insecure?')))
@@ -46,45 +115,47 @@ const HP_NODE_CARD_CSS = `
 #cbi-homeproxy-node .cbi-section-thead { display: none; }
 #cbi-homeproxy-node .cbi-section-tbody {
 	display: grid;
-	grid-template-columns: repeat(2, minmax(0, 1fr));
+	grid-template-columns: repeat(auto-fill, minmax(min(100%, 235px), 285px));
 	gap: 12px;
 	width: 100%;
 }
 #cbi-homeproxy-node .cbi-section-table-row {
 	display: flex;
-	align-items: center;
+	flex-direction: column;
+	align-items: stretch;
 	justify-content: space-between;
-	gap: 12px;
+	gap: 13px;
 	min-width: 0;
+	min-height: 148px;
 	box-sizing: border-box;
-	padding: 12px 14px;
-	border: 2px solid var(--border-color-medium, #8b8b8b);
-	border-radius: 10px;
-	background-color: var(--background-color, #fff);
+	padding: 15px;
+	border: 2px solid var(--border-color-high, var(--border-color-medium, #737373));
+	border-radius: 11px;
+	background-color: var(--background-color-high, var(--background-color, #fff));
 	color: var(--text-color, #222);
-	transition: border-color .15s ease, background-color .15s ease;
+	box-shadow: 0 2px 7px rgba(0,0,0,.15);
+	transition: border-color .15s ease, background-color .15s ease, box-shadow .15s ease;
 }
 #cbi-homeproxy-node .cbi-section-table-row > .td { min-width: 0; padding: 4px; border: 0; }
 #cbi-homeproxy-node .cbi-section-table-titles {
-	flex: 1 1 auto; min-width: 0; font-size: 1.04em;
-	font-weight: 750; overflow-wrap: anywhere;
+	flex: 0 0 auto; width:100%; min-width:0; font-size:1.05em;
+	font-weight:850; line-height:1.45; overflow-wrap:anywhere;
 }
 #cbi-homeproxy-node .cbi-section-actions {
-	display: flex; flex: 0 0 auto; align-items: center;
-	justify-content: flex-end; gap: 6px; white-space: nowrap;
+	display:flex; flex:0 0 auto; width:100%; align-items:center;
+	justify-content:flex-start; flex-wrap:wrap; gap:7px; white-space:normal;
 }
 #cbi-homeproxy-node .cbi-section-actions .cbi-button,
 #cbi-homeproxy-node .cbi-section-actions button { border-radius: 6px; }
-#cbi-homeproxy-node .cbi-section-table-row:hover { border-color: #1769aa; }
+#cbi-homeproxy-node .cbi-section-table-row:hover { border-color:var(--primary-color-high,#1769aa); box-shadow:0 4px 11px rgba(0,0,0,.22); }
 #cbi-homeproxy-node .cbi-section-table-row.hp-node-current {
 	border: 3px solid #1769aa; background-color: #dceeff;
 	color: #10243a; box-shadow: inset 5px 0 0 #1769aa;
 }
 #cbi-homeproxy-node .cbi-section-table-row.hp-node-current .cbi-section-table-titles { font-weight: 850; }
 #cbi-homeproxy-node .cbi-section-table-row.placeholder { display: block; grid-column: 1 / -1; }
-@media (max-width: 900px) {
-	#cbi-homeproxy-node .cbi-section-tbody { grid-template-columns: minmax(0, 1fr); }
-}
+@media(max-width:900px){#cbi-homeproxy-node .cbi-section-tbody{grid-template-columns:repeat(auto-fill,minmax(min(100%,235px),285px))}}
+@media(max-width:560px){#cbi-homeproxy-node .cbi-section-tbody{grid-template-columns:minmax(0,1fr)}}
 `;
 function injectNodeCardCss() {
 	let style = document.getElementById('hp-node-card-css');
@@ -2013,11 +2084,11 @@ return view.extend({
 		s.tab('subscription', _('Subscriptions'));
 
 		o = s.taboption('subscription', form.Flag, 'auto_update', _('Auto update'),
-			_('Enable scheduled subscription updates and daily geodata refresh.'));
+			'总开关：关闭后所有订阅都不自动更新；开启后，只更新已填写具体小时的订阅分组。');
 		o.rmempty = false;
 
 		o = s.taboption('subscription', form.ListValue, 'auto_update_time', _('Geodata update time'),
-			_('Daily refresh time for GeoIP resources. Each subscription group has its own weekly schedule in its group tab.'));
+			_('Daily GeoIP refresh time. Subscription updates are configured independently for each URL below.'));
 		for (let i = 0; i < 24; i++)
 			o.value(i, i + ':00');
 		o.default = '2';
@@ -2042,6 +2113,28 @@ return view.extend({
 			}
 
 			return true;
+		}
+
+
+		for (const info of subinfo) {
+			o=s.taboption('subscription',form.Button,'_update_sub_'+info.hash,'更新订阅：'+info.title);
+			o.inputstyle='apply';
+			o.inputtitle=function(){let count=0;uci.sections(data[0],'node',(node)=>{if(node.grouphash===info.hash)count++;});return '只更新此订阅（当前 %d 个节点）'.format(count);};
+			o.onclick=function(ev){return runSubUpdate('sub_'+info.hash,ev?.currentTarget||ev?.target,this.map);};
+
+			o=s.taboption('subscription',form.MultiValue,'sub_week_'+info.hash,'「'+info.title+'」更新星期','点选需要更新的星期；一个都不选 = 每天。只有填写下面的更新时间才会自动更新。');
+			o.value('1','周一');o.value('2','周二');o.value('3','周三');o.value('4','周四');o.value('5','周五');o.value('6','周六');o.value('0','周日');
+			o.rmempty=true;useWeekPicker(o);o.depends('auto_update','1');
+
+			o=s.taboption('subscription',form.Value,'sub_hours_'+info.hash,'「'+info.title+'」更新时间（几点）','填写 0-23 的整点，多个时间用英文逗号隔开，例如 3 或 3,15；留空 = 此订阅不自动更新。');
+			o.placeholder='留空 = 不自动更新';o.rmempty=true;
+			o.validate=function(section_id,value){
+				if(!value)return true;
+				if(!/^\d{1,2}([ ,]+\d{1,2})*$/.test(value.trim()))return '请填写 0-23 的整点，多个时间用英文逗号隔开';
+				for(let hour of value.trim().split(/[ ,]+/))if(parseInt(hour,10)>23)return '小时必须在 0-23 之间';
+				return true;
+			};
+			o.depends('auto_update','1');
 		}
 
 		o = s.taboption('subscription', form.ListValue, 'filter_nodes', _('Filter nodes'),
@@ -2093,79 +2186,7 @@ return view.extend({
 				return _('No subscription available')
 			}
 		}
-		o.onclick = function(ev) {
-			const button = ev && ev.currentTarget;
-			const progressLog = E('pre', {
-				style: 'max-height:60vh;overflow:auto;white-space:pre-wrap;word-break:break-word;'
-			}, _('Starting subscription update...'));
-
-			if (button)
-				button.disabled = true;
-
-			ui.showModal(_('Updating subscriptions'), [
-				E('p', _('Fetching and validating subscription nodes. Progress is shown below.')),
-				progressLog
-			]);
-
-			return this.map.save(null, true)
-			.then(() => ui.changes.apply(true))
-			.then(() => fs.exec_direct(
-				'/etc/homeproxy/scripts/update_crond.sh',
-				['subscriptions'], 'text', false, true,
-				(progressEvent) => {
-					const xhr = progressEvent && progressEvent.target;
-					const output = xhr && (xhr.responseText || xhr.response);
-
-					if (typeof output === 'string') {
-						progressLog.textContent = output.slice(-16000);
-						progressLog.scrollTop = progressLog.scrollHeight;
-					}
-				}
-			)).then((output) => {
-				const result = String(output || progressLog.textContent || '');
-				ui.hideModal();
-
-				if (result.indexOf('WARNING:') !== -1) {
-					ui.showModal(_('Subscription update completed with warnings'), [
-						E('p', _('Some subscriptions failed. Existing nodes for those subscriptions were kept.')),
-						E('pre', {
-							style: 'max-height:60vh;overflow:auto;white-space:pre-wrap;word-break:break-word;'
-						}, result.slice(-16000)),
-						E('div', { 'class': 'right' }, [
-							E('button', {
-								'class': 'btn',
-								'click': () => location.reload()
-							}, [ _('Reload page') ])
-						])
-					]);
-					return;
-				}
-
-				return location.reload();
-			}).catch((err) => {
-				return L.resolveDefault(callSubscriptionLogTail(), { content: '' }).then((result) => {
-					const detail = (result.content || '').trim() ||
-						progressLog.textContent || err.message || String(err);
-
-					ui.hideModal();
-					ui.showModal(_('Subscription update failed'), [
-						E('p', _('The updater did not complete. Recent subscription log output:')),
-						E('pre', {
-							style: 'max-height:60vh;overflow:auto;white-space:pre-wrap;word-break:break-word;'
-						}, detail.slice(-16000)),
-						E('div', { 'class': 'right' }, [
-							E('button', {
-								'class': 'btn',
-								'click': () => location.reload()
-							}, [ _('Close and reload') ])
-						])
-					]);
-
-					if (button)
-						button.disabled = null;
-				});
-			});
-		}
+		o.onclick = function(ev) { return runSubUpdate('sub_all',ev?.currentTarget||ev?.target,this.map); }
 
 		o = s.taboption('subscription', form.Button, '_remove_subscriptions', _('Remove all nodes from subscriptions'));
 		o.inputstyle = 'reset';
@@ -2194,34 +2215,9 @@ return view.extend({
 		}
 		/* Subscriptions settings end */
 
-		/* Subscription schedules: keep these lightweight fields separate from
-		 * the large per-group node GridSections to avoid blocking node view render. */
-		s.tab('subscription_schedule', _('Subscription schedule'));
-		const subscriptionScheduleDays = [
-			[ '1', _('Monday') ], [ '2', _('Tuesday') ], [ '3', _('Wednesday') ],
-			[ '4', _('Thursday') ], [ '5', _('Friday') ], [ '6', _('Saturday') ],
-			[ '7', _('Sunday') ]
-		];
-		for (const info of subinfo) {
-			for (const [day, dayLabel] of subscriptionScheduleDays) {
-				const scheduleOption = 'schedule_' + info.hash + '_d' + day;
-				o = s.taboption('subscription_schedule', form.Value, scheduleOption,
-					_('%s update time — %s').format(info.title, dayLabel));
-				o.placeholder = 'HH:MM';
-				o.maxlength = 5;
-				o.rmempty = true;
-				o.description = _('Use 24-hour HH:MM in router local time. Leave blank to disable this weekday. Requires Auto update to be enabled.');
-				o.validate = function(section_id, value) {
-					if (!value)
-						return true;
-					return /^(?:[01][0-9]|2[0-3]):[0-5][0-9]$/.test(value) ? true :
-						_('Use HH:MM format, from 00:00 to 23:59.');
-				};
-			}
-		}
-
 		return m.render().then((root) => {
 			injectNodeCardCss();
+			injectSettingsCardSkin(root);
 			const activeNodes = new Set();
 			const selectedMainNode = uci.get(data[0], 'config', 'main_node');
 			if (selectedMainNode === 'urltest') {

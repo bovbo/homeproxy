@@ -27,6 +27,62 @@ log() {
 	echo -e "$(date "+%Y-%m-%d %H:%M:%S") [DAEMON] $*" >> "$LOG_PATH"
 }
 
+append_homeproxy_weekday() {
+	case "$1" in
+		0|1|2|3|4|5|6)
+			case " $HP_SUB_WEEKDAYS " in
+				*" $1 "*) ;;
+				*) HP_SUB_WEEKDAYS="$HP_SUB_WEEKDAYS $1" ;;
+			esac
+			;;
+	esac
+}
+setup_homeproxy_subscription_cron() {
+	local auto_update auto_update_time subscription_urls subscription_url subscription_base
+	local group_hash seen_hashes week_option hours_option sub_hours hour_list hour hour_num day seen_hours
+	config_get_bool auto_update "subscription" "auto_update" "0"
+	sed -i '/#homeproxy_autosetup/d; /#homeproxy_resources/d; /#homeproxy_schedule_/d; /#homeproxy_sub_/d' "/etc/crontabs/root" 2>"/dev/null"
+	if [ "$auto_update" = "1" ]; then
+		config_get auto_update_time "subscription" "auto_update_time" "2"
+		case "$auto_update_time" in [0-9]|1[0-9]|2[0-3]) ;; *) auto_update_time="2" ;; esac
+		printf '0 %s * * * %s china_ip4 && %s china_ip6 #homeproxy_resources\n' \
+			"$auto_update_time" "$HP_DIR/scripts/update_resources.sh" "$HP_DIR/scripts/update_resources.sh" >> "/etc/crontabs/root"
+		config_get subscription_urls "subscription" "subscription_url"
+		seen_hashes=""
+		for subscription_url in $subscription_urls; do
+			subscription_base="${subscription_url%%#*}"
+			group_hash="$(printf '%s' "$subscription_base" | md5sum)"
+			group_hash="${group_hash%% *}"
+			case "$group_hash" in ''|*[!0-9a-f]*) continue ;; esac
+			case " $seen_hashes " in *" $group_hash "*) continue ;; esac
+			seen_hashes="$seen_hashes $group_hash"
+			week_option="sub_week_$group_hash"
+			hours_option="sub_hours_$group_hash"
+			HP_SUB_WEEKDAYS=""
+			config_list_foreach "subscription" "$week_option" append_homeproxy_weekday
+			config_get sub_hours "subscription" "$hours_option"
+			[ -n "$sub_hours" ] || continue
+			[ -n "$HP_SUB_WEEKDAYS" ] || HP_SUB_WEEKDAYS="0 1 2 3 4 5 6"
+			hour_list="$(printf '%s' "$sub_hours" | tr ',' ' ')"
+			seen_hours=""
+			for hour in $hour_list; do
+				case "$hour" in ''|*[!0-9]*) continue ;; esac
+				hour_num="$(printf '%s' "$hour" | sed 's/^0*//')"
+				[ -n "$hour_num" ] || hour_num="0"
+				case "$hour_num" in [0-9]|1[0-9]|2[0-3]) ;; *) continue ;; esac
+				case " $seen_hours " in *" $hour_num "*) continue ;; esac
+				seen_hours="$seen_hours $hour_num"
+				for day in $HP_SUB_WEEKDAYS; do
+					printf '0 %s * * %s %s %s #homeproxy_sub_%s_%s_%s\n' \
+						"$hour_num" "$day" "$HP_DIR/scripts/update_crond.sh" \
+						"$group_hash" "$group_hash" "$day" "$hour_num" >> "/etc/crontabs/root"
+				done
+			done
+		done
+	fi
+	/etc/init.d/cron restart
+}
+
 start_service() {
 	mkdir -p "$RUN_DIR"
 
@@ -34,6 +90,7 @@ start_service() {
 	ucode -S "$HP_DIR/scripts/cleanup_urltest.uc" >>"$LOG_PATH" 2>&1
 
 	config_load "$CONF"
+	setup_homeproxy_subscription_cron
 
 	local routing_mode proxy_mode
 	config_get routing_mode "config" "routing_mode" "bypass_mainland_china"
@@ -84,54 +141,6 @@ start_service() {
 			[ -e "$HP_DIR/cache/cache.db" ] || touch "$HP_DIR/cache/cache.db"
 			chown -R sing-box:sing-box "$HP_DIR/cache" 2>"/dev/null"
 		fi
-
-		# Subscription schedules: refresh geodata daily and each URL group on its
-		# configured weekdays. Weekday values 1-6 map to Mon-Sat; 7 maps to Sunday.
-		local auto_update auto_update_time subscription_urls subscription_url subscription_base
-		local group_hash seen_hashes day schedule schedule_option hour minute cron_day
-		config_get_bool auto_update "subscription" "auto_update" "0"
-		sed -i '/#homeproxy_autosetup/d; /#homeproxy_resources/d; /#homeproxy_schedule_/d' "/etc/crontabs/root" 2>"/dev/null"
-		if [ "$auto_update" = "1" ]; then
-			config_get auto_update_time "subscription" "auto_update_time" "2"
-			case "$auto_update_time" in
-				[0-9]|1[0-9]|2[0-3]) ;;
-				*) auto_update_time="2" ;;
-			esac
-			printf '0 %s * * * %s resources #homeproxy_resources\n' \
-				"$auto_update_time" "$HP_DIR/scripts/update_crond.sh" >> "/etc/crontabs/root"
-
-			config_get subscription_urls "subscription" "subscription_url"
-			seen_hashes=""
-			for subscription_url in $subscription_urls; do
-				subscription_base="${subscription_url%%#*}"
-				group_hash="$(printf '%s' "$subscription_base" | md5sum)"
-				group_hash="${group_hash%% *}"
-				case "$group_hash" in
-					''|*[!0-9a-f]*) continue ;;
-					esac
-				case " $seen_hashes " in
-					*" $group_hash "*) continue ;;
-					esac
-					seen_hashes="$seen_hashes $group_hash"
-
-				for day in 1 2 3 4 5 6 7; do
-					schedule_option="schedule_${group_hash}_d${day}"
-					config_get schedule "subscription" "$schedule_option"
-					case "$schedule" in
-						[01][0-9]:[0-5][0-9]|2[0-3]:[0-5][0-9]) ;;
-						*) continue ;;
-					esac
-					hour="${schedule%:*}"
-					minute="${schedule#*:}"
-					cron_day="$day"
-					[ "$day" = "7" ] && cron_day="0"
-					printf '%s %s * * %s %s subscription %s #homeproxy_schedule_%s_%s\n' \
-						"$minute" "$hour" "$cron_day" "$HP_DIR/scripts/update_crond.sh" \
-						"$group_hash" "$group_hash" "$day" >> "/etc/crontabs/root"
-				done
-			done
-		fi
-		/etc/init.d/cron restart
 
 		# DNSMasq rules
 		local ipv6_support dns_port
@@ -292,7 +301,7 @@ start_service() {
 }
 
 stop_service() {
-	sed -i "/#${CONF}_autosetup/d; /#homeproxy_resources/d; /#homeproxy_schedule_/d" "/etc/crontabs/root" 2>"/dev/null"
+	sed -i "/#${CONF}_autosetup/d; /#homeproxy_resources/d; /#homeproxy_schedule_/d; /#homeproxy_sub_/d" "/etc/crontabs/root" 2>"/dev/null"
 	/etc/init.d/cron restart >"/dev/null" 2>&1
 
 	# Setup firewall

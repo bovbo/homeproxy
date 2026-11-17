@@ -18,6 +18,20 @@
 'require tools.firewall as fwtool';
 'require tools.widgets as widgets';
 
+const HP_SETTINGS_CARD_CSS="\n.hp-settings-cards .hp-field-grid{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(min(100%,245px),285px));justify-content:start;align-items:stretch;gap:13px}\n.hp-settings-cards .hp-field-grid>:not(.cbi-value){grid-column:1/-1}\n.hp-settings-cards .hp-field-grid>.cbi-value{box-sizing:border-box;min-width:0;min-height:158px;margin:0!important;padding:14px 15px!important;display:flex;flex-direction:column;align-items:stretch;border:2px solid var(--border-color-medium,#737373)!important;border-radius:11px!important;background:var(--background-color-high,var(--background-color,#fff))!important;box-shadow:0 2px 7px rgba(0,0,0,.15)}\n.hp-settings-cards .hp-field-grid>.cbi-value:hover{border-color:var(--primary-color-high,#1769aa)!important;box-shadow:0 4px 11px rgba(0,0,0,.21)}\n.hp-settings-cards .cbi-value-title{float:none!important;width:auto!important;max-width:none!important;margin:0 0 10px!important;padding:0!important;font-weight:850!important;line-height:1.4;overflow-wrap:anywhere}\n.hp-settings-cards .cbi-value-field{float:none!important;width:auto!important;max-width:none!important;min-width:0;margin:0!important;padding:0!important;flex:1 1 auto}\n.hp-settings-cards .cbi-value-description{margin-top:10px!important;padding:8px 10px;border-left:3px solid var(--primary-color-high,#777);border-radius:5px;background:rgba(128,128,128,.10);line-height:1.45}\n.hp-settings-cards input:not([type=checkbox]):not([type=radio]),.hp-settings-cards select,.hp-settings-cards textarea{box-sizing:border-box;width:100%;max-width:100%;min-height:38px;border:2px solid var(--border-color-medium,#737373)!important;border-radius:7px!important;background:var(--background-color,#fff)!important;color:var(--text-color,inherit)!important}\n.hp-settings-cards textarea{min-height:115px}\n.hp-settings-cards input:not([type=checkbox]):not([type=radio]):focus,.hp-settings-cards select:focus,.hp-settings-cards textarea:focus{border-color:var(--primary-color-high,#1769aa)!important;outline:2px solid rgba(23,105,170,.25);outline-offset:1px}\n.hp-settings-cards .cbi-button,.hp-settings-cards button,.hp-settings-cards input[type=button],.hp-settings-cards input[type=submit]{min-height:36px;border-width:2px!important;border-radius:8px!important;font-weight:800}\n.hp-settings-cards .cbi-tabmenu>li>a{margin:3px;border:2px solid var(--border-color-medium,#737373);border-radius:8px;font-weight:800}\n.hp-settings-cards .cbi-tabmenu>li.cbi-tab>a{border-color:var(--primary-color-high,#1769aa);background:var(--primary-color-high,#1769aa);color:#fff}\n@media(max-width:680px){.hp-settings-cards .hp-field-grid{grid-template-columns:minmax(0,1fr)}.hp-settings-cards .hp-field-grid>.cbi-value{min-height:132px}}\n";
+function injectSettingsCardSkin(root){
+ if(!root||!root.querySelectorAll)return root;
+ root.classList?.add('hp-settings-cards');
+ root.querySelectorAll('.cbi-section').forEach((section)=>{
+  if(Array.from(section.children).some((child)=>child.classList?.contains('cbi-value')))section.classList.add('hp-field-grid');
+ });
+ let style=document.getElementById('hp-settings-card-css');
+ if(!style){style=E('style',{'id':'hp-settings-card-css'});document.head.appendChild(style);}
+ style.textContent=HP_SETTINGS_CARD_CSS;
+ return root;
+}
+
+
 const callServiceList = rpc.declare({
 	object: 'service',
 	method: 'list',
@@ -865,6 +879,6 @@ return view.extend({
 		so.depends('enabled', '1');
 		/* Tailscale settings end */
 
-		return m.render();
+		return m.render().then((root)=>{injectSettingsCardSkin(root);return root;});
 	}
 });

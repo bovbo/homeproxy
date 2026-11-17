@@ -197,6 +197,47 @@ const methods = {
 		}
 	},
 
+	resources_update_start: {
+		args: { type: 'type' },
+		call: function(req) {
+			const type=trim(req.args?.type||'');
+			let args=[],job_key='';
+			if(type==='sub_all')job_key='all';
+			else{const group=match(type,/^sub_([0-9a-f]{32})$/);if(!group)return {result:false,error:'illegal subscription group'};args=[group[1]];job_key=group[1];}
+			system('mkdir -p '+shellquote(RUN_DIR));
+			const status_file=`${RUN_DIR}/subscription-update-${job_key}.status`;
+			const pid_file=`${RUN_DIR}/subscription-update-${job_key}.pid`;
+			const log_file=`${RUN_DIR}/subscription-update-${job_key}.log`;
+			const old_status=trim(readfile(status_file)||'');
+			const old_pid=trim(readfile(pid_file)||'');
+			if(old_status==='running'&&(!match(old_pid,/^[0-9]+$/)||system('kill -0 '+old_pid+' 2>/dev/null')===0))return {result:false,error:'this subscription job is already queued or running'};
+			writefile(status_file,'running');writefile(log_file,'Starting subscription update...\n');
+			const command_args=map(args,(hash)=>shellquote(hash));
+			const command='('+shellquote(HP_DIR+'/scripts/update_crond.sh')+(length(command_args)?' '+join(command_args,' '):'')+
+				' >>'+shellquote(log_file)+' 2>&1; rc=$?; printf \'%s\\n\' "$rc" >'+shellquote(status_file)+'; rm -f '+shellquote(pid_file)+
+				') </dev/null >/dev/null 2>&1 & echo $! >'+shellquote(pid_file);
+			if(system(command)!==0){writefile(status_file,'spawn_failed');return {result:false,error:'could not start background updater'};}
+			return {result:true};
+		}
+	},
+	resources_update_status: {
+		args: { type: 'type' },
+		call: function(req) {
+			const type=trim(req.args?.type||'');let job_key='';
+			if(type==='sub_all')job_key='all';
+			else{const group=match(type,/^sub_([0-9a-f]{32})$/);if(!group)return {state:'error',message:'illegal subscription group'};job_key=group[1];}
+			const status_file=`${RUN_DIR}/subscription-update-${job_key}.status`;
+			const pid_file=`${RUN_DIR}/subscription-update-${job_key}.pid`;
+			const log_file=`${RUN_DIR}/subscription-update-${job_key}.log`;
+			const status=trim(readfile(status_file)||'');const pid=trim(readfile(pid_file)||'');
+			if(!status)return {state:'idle'};
+			if(status==='running'){if(!match(pid,/^[0-9]+$/)||system('kill -0 '+pid+' 2>/dev/null')===0)return {state:'running'};return {state:'error',message:'后台更新进程已退出，未写入完成状态。'};}
+			const content=readfile(log_file)||'';const limit=3000;const detail=length(content)>limit?substr(content,length(content)-limit):content;
+			if(status==='0')return {state:'success',message:detail};
+			return {state:'error',message:detail||('updater exit status: '+status)};
+		}
+	},
+
 	singbox_generator: {
 		args: { type: 'type', params: 'params' },
 		call: function(req) {
