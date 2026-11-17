@@ -2948,3 +2948,43 @@ msgstr ""
 #: htdocs/luci-static/resources/view/homeproxy/client.js
 msgid "TrafficRoute Public DNS (180.184.1.1)"
 msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/node.js
+msgid "Unable to save node removal: %s"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/node.js
+msgid "Starting subscription update..."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/node.js
+msgid "Updating subscriptions"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/node.js
+msgid "Fetching and validating subscription nodes. Progress is shown below."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/node.js
+msgid "Some subscriptions failed. Existing nodes for those subscriptions were kept."
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/node.js
+msgid "Reload page"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/node.js
+msgid "Subscription update completed with warnings"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/node.js
+msgid "The updater did not complete. Recent subscription log output:"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/node.js
+msgid "Subscription update failed"
+msgstr ""
+
+#: htdocs/luci-static/resources/view/homeproxy/node.js
+msgid "Close and reload"
+msgstr ""
