@@ -199,6 +199,45 @@ msgstr "自动更新"
 msgid "Auto update subscriptions and geodata."
 msgstr "自动更新订阅和地理数据。"
 
+msgid "Enable scheduled subscription updates and daily geodata refresh."
+msgstr "启用订阅定时更新和每日地理数据刷新。"
+
+msgid "Daily refresh time for GeoIP resources. Each subscription group has its own weekly schedule in its group tab."
+msgstr "GeoIP 资源每日更新时间。每个订阅分组可在对应分组标签页中单独设置每周更新计划。"
+
+msgid "Geodata update time"
+msgstr "地理数据更新时间"
+
+msgid "Monday"
+msgstr "星期一"
+
+msgid "Tuesday"
+msgstr "星期二"
+
+msgid "Wednesday"
+msgstr "星期三"
+
+msgid "Thursday"
+msgstr "星期四"
+
+msgid "Friday"
+msgstr "星期五"
+
+msgid "Saturday"
+msgstr "星期六"
+
+msgid "Sunday"
+msgstr "星期日"
+
+msgid "%s update time — %s"
+msgstr "%s 更新时间 — %s"
+
+msgid "Use 24-hour HH:MM in router local time. Leave blank to disable this weekday. Requires Auto update to be enabled."
+msgstr "使用路由器本地时间，24 小时制 HH:MM。留空表示本星期不更新。需要先启用“自动更新”。"
+
+msgid "Use HH:MM format, from 00:00 to 23:59."
+msgstr "请输入 HH:MM 格式，范围为 00:00 至 23:59。
+
 #: htdocs/luci-static/resources/view/homeproxy/node.js:800
 msgid "BBR"
 msgstr "BBR"

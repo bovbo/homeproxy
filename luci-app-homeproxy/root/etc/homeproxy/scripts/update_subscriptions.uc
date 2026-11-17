@@ -37,6 +37,18 @@ const allow_insecure = uci.get(uciconfig, ucisubscription, 'allow_insecure') || 
       user_agent = uci.get(uciconfig, ucisubscription, 'user_agent'),
       via_proxy = uci.get(uciconfig, ucisubscription, 'update_via_proxy') || '0';
 
+const requested_group_hash = (length(ARGV) === 2 && ARGV[0] === '--group') ? ARGV[1] : null;
+const invalid_group_argument = length(ARGV) > 0 &&
+	(length(ARGV) !== 2 || ARGV[0] !== '--group' || !match(ARGV[1], /^[0-9a-f]{32}$/));
+const update_subscription_urls = [];
+if (!invalid_group_argument) {
+	for (let i = 0; i < length(subscription_urls); i++) {
+		const candidate_url = replace(subscription_urls[i], /#.*$/, '');
+		if (!requested_group_hash || md5(candidate_url) === requested_group_hash)
+			push(update_subscription_urls, subscription_urls[i]);
+	}
+}
+
 /* UCI config end */
 
 /* String helper start */
@@ -608,12 +620,12 @@ function main() {
 		service_was_stopped = true;
 	}
 
-	for (let sub_index = 0; sub_index < length(subscription_urls); sub_index++) {
-		let url = replace(subscription_urls[sub_index], /#.*$/, '');
+	for (let sub_index = 0; sub_index < length(update_subscription_urls); sub_index++) {
+		let url = replace(update_subscription_urls[sub_index], /#.*$/, '');
 		const groupHash = md5(url);
 		node_cache[groupHash] = {};
 
-		progress(sprintf('Fetching subscription %d/%d...', sub_index + 1, length(subscription_urls)));
+		progress(sprintf('Fetching subscription %d/%d...', sub_index + 1, length(update_subscription_urls)));
 
 		const fetchResult = wGETResult(url, user_agent);
 		if (isEmpty(fetchResult.content)) {
@@ -767,6 +779,11 @@ function main() {
 		if (!cfg.grouphash)
 			return null;
 
+		/* A scheduled single-group refresh must never touch nodes belonging to
+		 * any other subscription. Full refreshes retain the existing cleanup logic. */
+		if (requested_group_hash && cfg.grouphash !== requested_group_hash)
+			return null;
+
 		/* A configured subscription that failed to fetch/parse keeps its
 		 * existing nodes. A hash absent from the current URL list was removed
 		 * by the user and its orphaned nodes must be deleted. */
@@ -850,7 +867,18 @@ function main() {
 	return { success: true, failed: failed_subscriptions, added, removed };
 }
 
-if (isEmpty(subscription_urls)) {
+if (invalid_group_argument) {
+	progress('FAILED: invalid subscription group selector.');
+	exit(2);
+}
+
+if (isEmpty(update_subscription_urls)) {
+	if (requested_group_hash) {
+		log(sprintf('No subscription URL matches group %s.', requested_group_hash));
+		progress('FAILED: the scheduled subscription group no longer exists.');
+		exit(1);
+	}
+
 	log('No subscription URL configured; skipping subscription update.');
 	progress('SKIPPED: no subscription URL configured.');
 	exit(0);

@@ -1979,8 +1979,32 @@ return view.extend({
 		/* User nodes end */
 
 		/* Subscription nodes start */
+		const subscriptionScheduleDays = [
+			[ '1', _('Monday') ], [ '2', _('Tuesday') ], [ '3', _('Wednesday') ],
+			[ '4', _('Thursday') ], [ '5', _('Friday') ], [ '6', _('Saturday') ],
+			[ '7', _('Sunday') ]
+		];
+		const renderedScheduleGroups = new Set();
 		for (const info of subinfo) {
 			s.tab('sub_' + info.hash, _('Sub (%s)').format(info.title));
+			if (!renderedScheduleGroups.has(info.hash)) {
+				renderedScheduleGroups.add(info.hash);
+				for (const [day, dayLabel] of subscriptionScheduleDays) {
+					const scheduleOption = 'schedule_' + info.hash + '_d' + day;
+					o = s.taboption('sub_' + info.hash, form.Value, scheduleOption,
+						_('%s update time — %s').format(info.title, dayLabel));
+					o.placeholder = 'HH:MM';
+					o.maxlength = 5;
+					o.rmempty = true;
+					o.description = _('Use 24-hour HH:MM in router local time. Leave blank to disable this weekday. Requires Auto update to be enabled.');
+					o.validate = function(section_id, value) {
+						if (!value)
+							return true;
+						return /^(?:[01][0-9]|2[0-3]):[0-5][0-9]$/.test(value) ? true :
+							_('Use HH:MM format, from 00:00 to 23:59.');
+					};
+				}
+			}
 			o = s.taboption('sub_' + info.hash, form.SectionValue, '_sub_' + info.hash, form.GridSection, 'node');
 			ss = renderNodeSettings(o.subsection, data, features, main_node, routing_mode);
 			ss.filter = function(section_id) {
@@ -2013,10 +2037,11 @@ return view.extend({
 		s.tab('subscription', _('Subscriptions'));
 
 		o = s.taboption('subscription', form.Flag, 'auto_update', _('Auto update'),
-			_('Auto update subscriptions and geodata.'));
+			_('Enable scheduled subscription updates and daily geodata refresh.'));
 		o.rmempty = false;
 
-		o = s.taboption('subscription', form.ListValue, 'auto_update_time', _('Update time'));
+		o = s.taboption('subscription', form.ListValue, 'auto_update_time', _('Geodata update time'),
+			_('Daily refresh time for GeoIP resources. Each subscription group has its own weekly schedule in its group tab.'));
 		for (let i = 0; i < 24; i++)
 			o.value(i, i + ':00');
 		o.default = '2';
@@ -2106,9 +2131,11 @@ return view.extend({
 				progressLog
 			]);
 
-			return fs.exec_direct(
-				'/etc/homeproxy/scripts/update_subscriptions.uc',
-				[], 'text', false, true,
+			return this.map.save(null, true)
+			.then(() => ui.changes.apply(true))
+			.then(() => fs.exec_direct(
+				'/etc/homeproxy/scripts/update_crond.sh',
+				['subscriptions'], 'text', false, true,
 				(progressEvent) => {
 					const xhr = progressEvent && progressEvent.target;
 					const output = xhr && (xhr.responseText || xhr.response);
@@ -2118,7 +2145,7 @@ return view.extend({
 						progressLog.scrollTop = progressLog.scrollHeight;
 					}
 				}
-			).then((output) => {
+			)).then((output) => {
 				const result = String(output || progressLog.textContent || '');
 				ui.hideModal();
 
