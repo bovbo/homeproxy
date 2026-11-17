@@ -26,6 +26,75 @@ function allowInsecureConfirm(ev, _section_id, value) {
 		ev.target.firstElementChild.checked = null;
 }
 
+function decodeBase64Safe(str) {
+	if (!str) return null;
+	str = String(str).trim().replace(/[\t\r\n ]+/g, '');
+	str = str.replace(/-/g, '+').replace(/_/g, '/');
+	if (!/^[A-Za-z0-9+/]*={0,2}$/.test(str) || str.length % 4 === 1) return null;
+	if (str.includes('=') && (str.length % 4 !== 0 || !/={1,2}$/.test(str))) return null;
+	try { return hp.decodeBase64Str(str); }
+	catch (e) { return null; }
+}
+function decodeSSBase64(str) {
+	if (!str) return null;
+	return decodeBase64Safe(String(str).replace(/%3d/ig, '='));
+}
+
+const HP_NODE_CARD_CSS = `
+#cbi-homeproxy-node { width: 100%; min-width: 0; }
+#cbi-homeproxy-node .cbi-section-table { display: block; width: 100%; border-collapse: separate; border-spacing: 0; }
+#cbi-homeproxy-node .cbi-section-thead { display: none; }
+#cbi-homeproxy-node .cbi-section-tbody {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 12px;
+	width: 100%;
+}
+#cbi-homeproxy-node .cbi-section-table-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	min-width: 0;
+	box-sizing: border-box;
+	padding: 12px 14px;
+	border: 2px solid var(--border-color-medium, #8b8b8b);
+	border-radius: 10px;
+	background-color: var(--background-color, #fff);
+	color: var(--text-color, #222);
+	transition: border-color .15s ease, background-color .15s ease;
+}
+#cbi-homeproxy-node .cbi-section-table-row > .td { min-width: 0; padding: 4px; border: 0; }
+#cbi-homeproxy-node .cbi-section-table-titles {
+	flex: 1 1 auto; min-width: 0; font-size: 1.04em;
+	font-weight: 750; overflow-wrap: anywhere;
+}
+#cbi-homeproxy-node .cbi-section-actions {
+	display: flex; flex: 0 0 auto; align-items: center;
+	justify-content: flex-end; gap: 6px; white-space: nowrap;
+}
+#cbi-homeproxy-node .cbi-section-actions .cbi-button,
+#cbi-homeproxy-node .cbi-section-actions button { border-radius: 6px; }
+#cbi-homeproxy-node .cbi-section-table-row:hover { border-color: #1769aa; }
+#cbi-homeproxy-node .cbi-section-table-row.hp-node-current {
+	border: 3px solid #1769aa; background-color: #dceeff;
+	color: #10243a; box-shadow: inset 5px 0 0 #1769aa;
+}
+#cbi-homeproxy-node .cbi-section-table-row.hp-node-current .cbi-section-table-titles { font-weight: 850; }
+#cbi-homeproxy-node .cbi-section-table-row.placeholder { display: block; grid-column: 1 / -1; }
+@media (max-width: 900px) {
+	#cbi-homeproxy-node .cbi-section-tbody { grid-template-columns: minmax(0, 1fr); }
+}
+`;
+function injectNodeCardCss() {
+	let style = document.getElementById('hp-node-card-css');
+	if (!style) {
+		style = E('style', { 'id': 'hp-node-card-css' });
+		document.head.appendChild(style);
+	}
+	style.textContent = HP_NODE_CARD_CSS;
+}
+
 function parseShareLink(uri, features) {
 	let config, url, params;
 
@@ -146,7 +215,9 @@ function parseShareLink(uri, features) {
 					if (suri.length <= 2) {
 						if (suri.length === 2)
 							slabel = '#' + suri[1];
-						uri[1] = hp.decodeBase64Str(suri[0]) + slabel;
+						const decodedSS = decodeSSBase64(suri[0]);
+						if (decodedSS && decodedSS.includes('@'))
+							uri[1] = decodedSS + slabel;
 					}
 				} catch(e) { }
 
@@ -159,7 +230,8 @@ function parseShareLink(uri, features) {
 					userinfo = [url.username, decodeURIComponent(url.password)];
 				} else if (url.username) {
 					/* User info encoded with base64 */
-					userinfo = hp.decodeBase64Str(decodeURIComponent(url.username)).split(':');
+					const decodedUserinfo = decodeSSBase64(decodeURIComponent(url.username));
+					userinfo = decodedUserinfo ? decodedUserinfo.split(':') : [];
 					if (userinfo.length > 1)
 						userinfo = [userinfo[0], userinfo.slice(1).join(':')]
 				}
@@ -417,12 +489,19 @@ function parseShareLink(uri, features) {
 
 			break;
 		case 'vmess':
-			/* "Lovely" shadowrocket format */
-			if (uri.includes('&'))
-				return null;
-
-			/* https://github.com/2dust/v2rayN/wiki/Description-of-VMess-share-link */
-			uri = JSON.parse(hp.decodeBase64Str(uri[1]));
+			if (uri.includes('&')) return null;
+			const vmessParts = uri[1].split('#');
+			let vmessData = null;
+			try { vmessData = JSON.parse(uri[1]); }
+			catch (e) {
+				try { vmessData = JSON.parse(vmessParts[0]); }
+				catch (plainError) {
+					try { vmessData = JSON.parse(decodeBase64Safe(vmessParts[0])); }
+					catch (decodeError) { return null; }
+				}
+			}
+			if (!vmessData || typeof vmessData !== 'object') return null;
+			uri = vmessData;
 
 			if (uri.v != '2')
 				return null;
@@ -437,7 +516,7 @@ function parseShareLink(uri, features) {
 			 */
 
 			config = {
-				label: uri.ps,
+				label: uri.ps || (vmessParts.length > 1 ? decodeURIComponent(vmessParts.slice(1).join('#')) : null),
 				type: 'vmess',
 				address: uri.add,
 				port: uri.port,
@@ -489,7 +568,10 @@ function parseShareLink(uri, features) {
 
 		config.address = config.address.replace(/\[|\]/g, '');
 	}
-
+	if (config.tls === '1') {
+		if (!config.tls_min_version) config.tls_min_version = '1.2';
+		if (!config.tls_max_version) config.tls_max_version = '1.3';
+	}
 	return config;
 }
 
@@ -2109,6 +2191,22 @@ return view.extend({
 		}
 		/* Subscriptions settings end */
 
-		return m.render();
+		return m.render().then((root) => {
+			injectNodeCardCss();
+			const activeNodes = new Set();
+			const selectedMainNode = uci.get(data[0], 'config', 'main_node');
+			if (selectedMainNode === 'urltest') {
+				const selectedNodes = uci.get(data[0], 'config', 'main_urltest_nodes') || [];
+				for (const id of (Array.isArray(selectedNodes) ? selectedNodes : [ selectedNodes ]))
+					if (id) activeNodes.add(id);
+			}
+			else if (selectedMainNode && selectedMainNode !== 'nil') {
+				activeNodes.add(selectedMainNode);
+			}
+			root.querySelectorAll('#cbi-homeproxy-node tr[data-section-id]').forEach((row) => {
+				row.classList.toggle('hp-node-current', activeNodes.has(row.getAttribute('data-section-id')));
+			});
+			return root;
+		});
 	}
 });
