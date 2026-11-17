@@ -187,6 +187,16 @@ const methods = {
 		}
 	},
 
+	subscription_log_tail: {
+		call: function() {
+			const content = readfile(`${RUN_DIR}/homeproxy.log`) || '';
+			const limit = 16384;
+			const offset = length(content) > limit ? length(content) - limit : 0;
+
+			return { content: substr(content, offset) };
+		}
+	},
+
 	singbox_generator: {
 		args: { type: 'type', params: 'params' },
 		call: function(req) {

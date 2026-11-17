@@ -7,12 +7,19 @@
 'use strict';
 'require form';
 'require fs';
+'require rpc';
 'require uci';
 'require ui';
 'require view';
 
 'require homeproxy as hp';
 'require tools.widgets as widgets';
+
+const callSubscriptionLogTail = rpc.declare({
+	object: 'luci.homeproxy',
+	method: 'subscription_log_tail',
+	expect: { '': {} }
+});
 
 function allowInsecureConfirm(ev, _section_id, value) {
 	if (value === '1' && !confirm(_('Are you sure to allow insecure?')))
@@ -1702,6 +1709,68 @@ return view.extend({
 			});
 		};
 
+		const removeNodeFromIndexes = function(sectionId) {
+			const groupHash = nodeGroupById[sectionId];
+			const ids = groupHash ? subscriptionNodeIds[groupHash] : null;
+
+			if (ids) {
+				const index = ids.indexOf(sectionId);
+				if (index !== -1)
+					ids.splice(index, 1);
+			}
+
+			delete nodeGroupById[sectionId];
+		};
+
+		/*
+		 * A normal GridSection removal calls Map.save(), which parses and
+		 * rerenders every tab and every node. That cost grows with the full
+		 * node count. Node options are modal-only, so remove only the selected
+		 * UCI sections, reconcile the same existing references, and remove
+		 * their rows without rebuilding the entire form.
+		 */
+		const saveNodeRemovals = function(map, sectionIds, ev) {
+			const config = map.config;
+			const ids = [];
+			const seen = Object.create(null);
+
+			for (const sectionId of sectionIds || []) {
+				if (!sectionId || seen[sectionId])
+					continue;
+
+				seen[sectionId] = true;
+				removeNodeFromIndexes(sectionId);
+
+				if (uci.get(config, sectionId))
+					ids.push(sectionId);
+			}
+
+			if (!ids.length)
+				return Promise.resolve();
+
+			if (ev && ev.currentTarget)
+				ev.currentTarget.disabled = true;
+
+			for (const sectionId of ids) {
+				map.data.remove(config, sectionId);
+
+				const row = map.root ?
+					map.root.querySelector('tr[data-section-id="%s"]'.format(sectionId)) : null;
+
+				if (row)
+					row.parentNode.removeChild(row);
+			}
+
+			/* Keep the existing URLTest/reference cleanup semantics unchanged. */
+			hp.reconcileUrltestNodes(data[0]);
+
+			return map.data.save().catch((err) => {
+				ui.addNotification(null, E('p', _('Unable to save node removal: %s').format(err.message || err)));
+				location.reload();
+				return Promise.reject(err);
+			});
+		};
+
 		m = new form.Map('homeproxy', _('Edit nodes'));
 
 		/* Saving the page rerenders sections, clean the URLTest lists of the
@@ -1723,6 +1792,9 @@ return view.extend({
 		ss.addremove = true;
 		ss.filter = function(section_id) {
 			return !subscriptionHashSet[nodeGroupById[section_id]];
+		}
+		ss.handleRemove = function(section_id, ev) {
+			return saveNodeRemovals(this.map, [section_id], ev);
 		}
 		/* Import subscription links start */
 		/* Thanks to luci-app-shadowsocks-libev */
@@ -1827,6 +1899,9 @@ return view.extend({
 			ss.cfgsections = function() {
 				return subscriptionNodeIds[info.hash] || [];
 			}
+			ss.handleRemove = function(section_id, ev) {
+				return saveNodeRemovals(this.map, [section_id], ev);
+			}
 
 			/* Keep cached order in step with desktop and touch drag sorting,
 			 * as well as column-based table sorting. */
@@ -1927,12 +2002,75 @@ return view.extend({
 				return _('No subscription available')
 			}
 		}
-		o.onclick = function() {
-			return fs.exec_direct('/etc/homeproxy/scripts/update_subscriptions.uc').then((res) => {
+		o.onclick = function(ev) {
+			const button = ev && ev.currentTarget;
+			const progressLog = E('pre', {
+				style: 'max-height:60vh;overflow:auto;white-space:pre-wrap;word-break:break-word;'
+			}, _('Starting subscription update...'));
+
+			if (button)
+				button.disabled = true;
+
+			ui.showModal(_('Updating subscriptions'), [
+				E('p', _('Fetching and validating subscription nodes. Progress is shown below.')),
+				progressLog
+			]);
+
+			return fs.exec_direct(
+				'/etc/homeproxy/scripts/update_subscriptions.uc',
+				[], 'text', false, true,
+				(progressEvent) => {
+					const xhr = progressEvent && progressEvent.target;
+					const output = xhr && (xhr.responseText || xhr.response);
+
+					if (typeof output === 'string') {
+						progressLog.textContent = output.slice(-16000);
+						progressLog.scrollTop = progressLog.scrollHeight;
+					}
+				}
+			).then((output) => {
+				const result = String(output || progressLog.textContent || '');
+				ui.hideModal();
+
+				if (result.indexOf('WARNING:') !== -1) {
+					ui.showModal(_('Subscription update completed with warnings'), [
+						E('p', _('Some subscriptions failed. Existing nodes for those subscriptions were kept.')),
+						E('pre', {
+							style: 'max-height:60vh;overflow:auto;white-space:pre-wrap;word-break:break-word;'
+						}, result.slice(-16000)),
+						E('div', { 'class': 'right' }, [
+							E('button', {
+								'class': 'btn',
+								'click': () => location.reload()
+							}, [ _('Reload page') ])
+						])
+					]);
+					return;
+				}
+
 				return location.reload();
 			}).catch((err) => {
-				ui.addNotification(null, E('p', _('An error occurred during updating subscriptions: %s').format(err)));
-				return this.map.reset();
+				return L.resolveDefault(callSubscriptionLogTail(), { content: '' }).then((result) => {
+					const detail = (result.content || '').trim() ||
+						progressLog.textContent || err.message || String(err);
+
+					ui.hideModal();
+					ui.showModal(_('Subscription update failed'), [
+						E('p', _('The updater did not complete. Recent subscription log output:')),
+						E('pre', {
+							style: 'max-height:60vh;overflow:auto;white-space:pre-wrap;word-break:break-word;'
+						}, detail.slice(-16000)),
+						E('div', { 'class': 'right' }, [
+							E('button', {
+								'class': 'btn',
+								'click': () => location.reload()
+							}, [ _('Close and reload') ])
+						])
+					]);
+
+					if (button)
+						button.disabled = null;
+				});
 			});
 		}
 
@@ -1948,24 +2086,17 @@ return view.extend({
 				return _('No subscription node');
 			}
 		}
-		o.onclick = function() {
-			let subnodes = getSubscriptionNodeIds();
+		o.onclick = function(ev) {
+			const subnodes = getSubscriptionNodeIds();
 
-			for (let i in subnodes) {
-				uci.remove(data[0], subnodes[i]);
-				delete nodeGroupById[subnodes[i]];
-			}
+			if (!subnodes.length)
+				return Promise.resolve();
 
-			for (const hash in subscriptionNodeIds)
-				subscriptionNodeIds[hash] = [];
-
-			if (subnodes.includes(uci.get(data[0], 'config', 'main_node')))
-				uci.set(data[0], 'config', 'main_node', 'nil');
-
-			this.inputtitle = _('%s nodes removed').format(subnodes.length);
+			const removeCount = subnodes.length;
+			this.inputtitle = _('%s nodes removed').format(removeCount);
 			this.readonly = true;
 
-			return this.map.save(null, true);
+			return saveNodeRemovals(this.map, subnodes, ev);
 		}
 		/* Subscriptions settings end */
 

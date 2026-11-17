@@ -15,7 +15,7 @@ import { cursor } from 'uci';
 import { urldecode, urlencode } from 'luci.http';
 
 import {
-	wGET, decodeBase64Str, getTime, isEmpty, parseURL,
+	wGETResult, decodeBase64Str, getTime, isEmpty, parseURL,
 	reconcileUrltestNodes, validation, HP_DIR, RUN_DIR
 } from 'homeproxy';
 
@@ -60,6 +60,7 @@ function filter_check(name) {
 /* Common var start */
 const node_cache = {},
       node_result = [];
+let service_was_stopped = false;
 
 const ubus = connect();
 const sing_features = ubus.call('luci.homeproxy', 'singbox_get_features', {}) || {};
@@ -75,6 +76,10 @@ function log(...args) {
 
 function service_action(action) {
 	return system([ '/etc/init.d/homeproxy', action ]);
+}
+
+function progress(...args) {
+	printf('%s [SUBSCRIBE] %s\n', getTime(), join(' ', args));
 }
 
 /* Map an XHTTP xmux object onto the xhttp_xmux_* UCI options */
@@ -570,33 +575,93 @@ function parse_uri(uri) {
 }
 
 function main() {
+	let failed_subscriptions = 0;
+
 	if (via_proxy !== '1') {
 		log('Stopping service...');
 		service_action('stop');
+		service_was_stopped = true;
 	}
 
-	for (let url in subscription_urls) {
-		url = replace(url, /#.*$/, '');
+	for (let sub_index = 0; sub_index < length(subscription_urls); sub_index++) {
+		let url = replace(subscription_urls[sub_index], /#.*$/, '');
 		const groupHash = md5(url);
 		node_cache[groupHash] = {};
 
-		const res = wGET(url, user_agent);
-		if (isEmpty(res)) {
-			log(sprintf('Failed to fetch resources from %s.', url));
+		progress(sprintf('Fetching subscription %d/%d...', sub_index + 1, length(subscription_urls)));
+
+		const fetchResult = wGETResult(url, user_agent);
+		if (isEmpty(fetchResult.content)) {
+			failed_subscriptions++;
+			log(sprintf('Failed to fetch resources from %s: %s.', url, fetchResult.error || 'unknown error'));
+			progress(sprintf('Fetch failed for subscription %d: %s', sub_index + 1, fetchResult.error || 'unknown error'));
 			continue;
 		}
 
-		let nodes;
-		try {
-			nodes = json(res).servers || json(res);
+		const res = fetchResult.content;
+		let parsed = null, is_json = false, body = res, nodes = null;
 
-			/* Shadowsocks SIP008 format */
-			if (nodes[0].server && nodes[0].method)
-				map(nodes, (_, i) => nodes[i].nodetype = 'sip008');
+		try {
+			parsed = json(body);
+			is_json = true;
 		} catch(e) {
-			nodes = decodeBase64Str(res);
-			nodes = nodes ? split(trim(replace(nodes, / /g, '_')), '\n') : [];
+			is_json = false;
 		}
+
+		if (!is_json) {
+			const decoded = decodeBase64Str(res);
+
+			if (decoded) {
+				body = decoded;
+				try {
+					parsed = json(body);
+					is_json = true;
+				} catch(e) {
+					is_json = false;
+				}
+			}
+		}
+
+		if (is_json) {
+			if (type(parsed) === 'array')
+				nodes = parsed;
+			else if (type(parsed) === 'object' && type(parsed.servers) === 'array')
+				nodes = parsed.servers;
+			else {
+				failed_subscriptions++;
+				log(sprintf('Unsupported JSON subscription structure from %s.', url));
+				progress(sprintf('Unsupported JSON subscription format at subscription %d.', sub_index + 1));
+				continue;
+			}
+		}
+		else {
+			/* Decode URI lists only when the result looks like a real URI payload. */
+			const decoded = decodeBase64Str(res);
+			if (decoded && match(decoded, /(^|\n)[ \t]*[a-z][a-z0-9+.-]*:\/\//i))
+				body = decoded;
+
+			body = replace(body, /\r/g, '');
+
+			if (match(body, /^\s*(proxies|proxy-providers)\s*:/m)) {
+				failed_subscriptions++;
+				log(sprintf('Unsupported Clash/Mihomo YAML subscription from %s; use a URI list or SIP008 JSON feed.', url));
+				progress(sprintf('Unsupported YAML subscription format at subscription %d.', sub_index + 1));
+				continue;
+			}
+
+			nodes = split(trim(body), '\n');
+		}
+
+		if (type(nodes) !== 'array') {
+			failed_subscriptions++;
+			log(sprintf('Invalid subscription payload from %s.', url));
+			progress(sprintf('Invalid subscription payload at subscription %d.', sub_index + 1));
+			continue;
+		}
+
+		/* Shadowsocks SIP008 format; guard empty arrays and non-object entries. */
+		if (length(nodes) && type(nodes[0]) === 'object' && nodes[0].server && nodes[0].method)
+			map(nodes, (_, i) => nodes[i].nodetype = 'sip008');
 
 		let count = 0;
 		for (let node in nodes) {
@@ -632,18 +697,25 @@ function main() {
 			}
 		}
 
-		if (count == 0)
+		if (count == 0) {
+			failed_subscriptions++;
 			log(sprintf('No valid node found in %s.', url));
-		else
+			progress(sprintf('No valid nodes in subscription %d; its existing nodes will be kept.', sub_index + 1));
+		}
+		else {
 			log(sprintf('Successfully fetched %s nodes of total %s from %s.', count, length(nodes), url));
+			progress(sprintf('Subscription %d: parsed %s nodes.', sub_index + 1, count));
+		}
 	}
 
 	if (isEmpty(node_result)) {
 		log('Failed to update subscriptions: no valid node found.');
+		progress('FAILED: no valid node was parsed; existing subscription nodes were left unchanged.');
 
-		if (via_proxy !== '1') {
+		if (service_was_stopped) {
 			log('Starting service...');
 			service_action('start');
+			service_was_stopped = false;
 		}
 
 		return false;
@@ -655,11 +727,13 @@ function main() {
 		if (!cfg.grouphash)
 			return null;
 
-		/* Empty object - failed to fetch nodes */
-		if (length(node_cache[cfg.grouphash]) === 0)
+		/* A configured subscription that failed to fetch/parse keeps its
+		 * existing nodes. A hash absent from the current URL list was removed
+		 * by the user and its orphaned nodes must be deleted. */
+		if (cfg.grouphash in node_cache && length(node_cache[cfg.grouphash]) === 0)
 			return null;
 
-		if (!node_cache[cfg.grouphash] || !node_cache[cfg.grouphash][cfg['.name']]) {
+		if (!(cfg.grouphash in node_cache) || !node_cache[cfg.grouphash][cfg['.name']]) {
 			uci.delete(uciconfig, cfg['.name']);
 			removed++;
 
@@ -702,22 +776,54 @@ function main() {
 	if (need_restart) {
 		log('Restarting service...');
 		service_action('stop');
-		service_action('start');
+		const start_status = service_action('start');
+		service_was_stopped = false;
+
+		if (start_status !== 0) {
+			log(sprintf('Failed to start HomeProxy after subscription update (status %s).', start_status));
+			progress(sprintf('FAILED: HomeProxy did not start successfully (status %s).', start_status));
+			return false;
+		}
 	}
 
 	log(sprintf('%s nodes added, %s removed.', added, removed));
 	log('Successfully updated subscriptions.');
+
+	if (failed_subscriptions)
+		progress(sprintf('WARNING: %s subscription(s) failed or contained no valid nodes; their existing nodes were kept.', failed_subscriptions));
+	else
+		progress(sprintf('COMPLETE: %s nodes added, %s removed.', added, removed));
+
+	return { success: true, failed: failed_subscriptions, added, removed };
 }
 
-if (!isEmpty(subscription_urls))
-	try {
-		call(main);
-	} catch(e) {
-		log('[FATAL ERROR] An error occurred during updating subscriptions:');
-		log(sprintf('%s: %s', e.type, e.message));
-		log(e.stacktrace[0].context);
+if (isEmpty(subscription_urls)) {
+	log('No subscription URL configured.');
+	progress('FAILED: no subscription URL configured.');
+	exit(1);
+}
 
-		log('Restarting service...');
-		service_action('stop');
-		service_action('start');
+try {
+	const result = call(main);
+
+	if (!result || result.success !== true) {
+		progress('FAILED: subscription update did not complete.');
+		exit(1);
 	}
+} catch(e) {
+	log('[FATAL ERROR] An error occurred during updating subscriptions:');
+	log(sprintf('%s: %s', e.type || 'Error', e.message || e));
+
+	if (e.stacktrace && length(e.stacktrace))
+		log(e.stacktrace[0].context || '');
+
+	progress(sprintf('FAILED: %s', e.message || e));
+
+	if (service_was_stopped) {
+		log('Starting service after failed update...');
+		service_action('start');
+		service_was_stopped = false;
+	}
+
+	exit(1);
+}

@@ -27,6 +27,8 @@ export function isBinary(str) {
 };
 
 export function executeCommand(...args) {
+	const stdout_limit = 4 * 1024 * 1024;
+	const stderr_limit = 64 * 1024;
 	let outfd = mkstemp();
 	let errfd = mkstemp();
 
@@ -35,8 +37,8 @@ export function executeCommand(...args) {
 	outfd.seek(0);
 	errfd.seek(0);
 
-	const stdout = outfd.read(1024 * 512) ?? '';
-	const stderr = errfd.read(1024 * 512) ?? '';
+	const stdout = outfd.read(stdout_limit) ?? '';
+	const stderr = errfd.read(stderr_limit) ?? '';
 
 	outfd.close();
 	errfd.close();
@@ -48,7 +50,8 @@ export function executeCommand(...args) {
 		stdout: binary ? null : stdout,
 		stderr,
 		exitcode,
-		binary
+		binary,
+		stdout_truncated: length(stdout) >= stdout_limit
 	};
 };
 
@@ -66,15 +69,40 @@ export function getTime(epoch) {
 
 };
 
-export function wGET(url, ua) {
+export function wGETResult(url, ua) {
 	if (!url || type(url) !== 'string')
-		return null;
+		return { content: null, error: 'invalid subscription URL' };
 
 	if (!ua)
 		ua = 'Wget/1.21 (HomeProxy, like v2rayN)';
 
-	const output = executeCommand(`/usr/bin/wget -qO- --user-agent ${shellQuote(ua)} --timeout=10 ${shellQuote(url)}`) || {};
-	return trim(output.stdout);
+	const output = executeCommand(`/usr/bin/wget -qO- --user-agent ${shellQuote(ua)} --timeout=10 ${shellQuote(url)}`);
+
+	if (!output)
+		return { content: null, error: 'unable to execute wget' };
+
+	if (output.exitcode !== 0)
+		return {
+			content: null,
+			error: trim(output.stderr) || sprintf('wget exited with status %d', output.exitcode)
+		};
+
+	if (output.binary)
+		return { content: null, error: 'subscription response is not text' };
+
+	if (output.stdout_truncated)
+		return { content: null, error: 'subscription response exceeds the 4 MiB safety limit' };
+
+	const content = trim(output.stdout || '');
+
+	if (!length(content))
+		return { content: null, error: 'subscription response is empty' };
+
+	return { content, error: null };
+};
+
+export function wGET(url, ua) {
+	return wGETResult(url, ua).content;
 };
 /* Utilities end */
 
@@ -276,6 +304,7 @@ export function decodeBase64Str(str) {
 		return null;
 
 	str = trim(str);
+	str = replace(str, /[\t\r\n ]+/g, '');
 	str = replace(str, '_', '/');
 	str = replace(str, '-', '+');
 
