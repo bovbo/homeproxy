@@ -808,9 +808,9 @@ function main() {
 }
 
 if (isEmpty(subscription_urls)) {
-	log('No subscription URL configured.');
-	progress('FAILED: no subscription URL configured.');
-	exit(1);
+	log('No subscription URL configured; skipping subscription update.');
+	progress('SKIPPED: no subscription URL configured.');
+	exit(0);
 }
 
 try {
