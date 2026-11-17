@@ -717,8 +717,13 @@ function main() {
 
 		if (service_was_stopped) {
 			log('Starting service...');
-			service_action('start');
-			service_was_stopped = false;
+			const start_status = service_action('start');
+			service_was_stopped = (start_status !== 0);
+
+			if (service_was_stopped) {
+				log(sprintf('Failed to restore HomeProxy after an unsuccessful subscription update (status %s).', start_status));
+				progress(sprintf('WARNING: HomeProxy start returned status %s after the subscription failure.', start_status));
+			}
 		}
 
 		return false;
@@ -780,13 +785,15 @@ function main() {
 		log('Restarting service...');
 		service_action('stop');
 		const start_status = service_action('start');
-		service_was_stopped = false;
 
 		if (start_status !== 0) {
+			service_was_stopped = true;
 			log(sprintf('Failed to start HomeProxy after subscription update (status %s).', start_status));
 			progress(sprintf('FAILED: HomeProxy did not start successfully (status %s).', start_status));
 			return false;
 		}
+
+		service_was_stopped = false;
 	}
 
 	log(sprintf('%s nodes added, %s removed.', added, removed));
@@ -810,6 +817,15 @@ try {
 	const result = call(main);
 
 	if (!result || result.success !== true) {
+		if (service_was_stopped) {
+			log('Retrying HomeProxy start after an unsuccessful update...');
+			const retry_status = service_action('start');
+			service_was_stopped = (retry_status !== 0);
+
+			if (service_was_stopped)
+				log(sprintf('HomeProxy start retry failed (status %s).', retry_status));
+		}
+
 		progress('FAILED: subscription update did not complete.');
 		exit(1);
 	}
@@ -824,8 +840,11 @@ try {
 
 	if (service_was_stopped) {
 		log('Starting service after failed update...');
-		service_action('start');
-		service_was_stopped = false;
+		const restore_status = service_action('start');
+		service_was_stopped = (restore_status !== 0);
+
+		if (service_was_stopped)
+			log(sprintf('HomeProxy restore attempt failed (status %s).', restore_status));
 	}
 
 	exit(1);
