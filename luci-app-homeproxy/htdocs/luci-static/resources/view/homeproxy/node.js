@@ -1661,6 +1661,47 @@ return view.extend({
 			subinfo.push({ 'hash': urlhash, 'title': title });
 		}
 
+		/* Index subscription membership once. GridSection filters otherwise repeat
+		 * a UCI lookup for every node in every subscription tab. */
+		const subscriptionHashSet = Object.create(null);
+		const subscriptionNodeIds = Object.create(null);
+		const nodeGroupById = Object.create(null);
+
+		for (const info of subinfo) {
+			subscriptionHashSet[info.hash] = true;
+			subscriptionNodeIds[info.hash] = [];
+		}
+
+		uci.sections(data[0], 'node', (node) => {
+			const sectionId = node['.name'];
+			const groupHash = node.grouphash || '';
+			nodeGroupById[sectionId] = groupHash;
+
+			if (subscriptionHashSet[groupHash])
+				subscriptionNodeIds[groupHash].push(sectionId);
+		});
+
+		const getSubscriptionNodeIds = function() {
+			let ids = [];
+			for (const hash in subscriptionNodeIds)
+				ids = ids.concat(subscriptionNodeIds[hash]);
+			return ids;
+		};
+
+		const syncSubscriptionNodeOrder = function() {
+			for (const hash in subscriptionNodeIds)
+				subscriptionNodeIds[hash] = [];
+
+			uci.sections(data[0], 'node', (node) => {
+				const sectionId = node['.name'];
+				const groupHash = node.grouphash || '';
+				nodeGroupById[sectionId] = groupHash;
+
+				if (subscriptionHashSet[groupHash])
+					subscriptionNodeIds[groupHash].push(sectionId);
+			});
+		};
+
 		m = new form.Map('homeproxy', _('Edit nodes'));
 
 		/* Saving the page rerenders sections, clean the URLTest lists of the
@@ -1681,11 +1722,7 @@ return view.extend({
 		ss = renderNodeSettings(o.subsection, data, features, main_node, routing_mode);
 		ss.addremove = true;
 		ss.filter = function(section_id) {
-			for (let info of subinfo)
-				if (info.hash === uci.get(data[0], section_id, 'grouphash'))
-					return false;
-
-			return true;
+			return !subscriptionHashSet[nodeGroupById[section_id]];
 		}
 		/* Import subscription links start */
 		/* Thanks to luci-app-shadowsocks-libev */
@@ -1785,7 +1822,23 @@ return view.extend({
 			o = s.taboption('sub_' + info.hash, form.SectionValue, '_sub_' + info.hash, form.GridSection, 'node');
 			ss = renderNodeSettings(o.subsection, data, features, main_node, routing_mode);
 			ss.filter = function(section_id) {
-				return (uci.get(data[0], section_id, 'grouphash') === info.hash);
+				return (nodeGroupById[section_id] === info.hash);
+			}
+			ss.cfgsections = function() {
+				return subscriptionNodeIds[info.hash] || [];
+			}
+
+			/* Keep cached order in step with desktop and touch drag sorting,
+			 * as well as column-based table sorting. */
+			for (const method of [ 'handleDrop', 'handleTouchEnd', 'handleSort' ]) {
+				const originalHandler = ss[method];
+				if (typeof originalHandler === 'function') {
+					ss[method] = function(ev) {
+						const result = originalHandler.call(this, ev);
+						syncSubscriptionNodeOrder();
+						return result;
+					};
+				}
 			}
 		}
 		/* Subscription nodes end */
@@ -1886,11 +1939,7 @@ return view.extend({
 		o = s.taboption('subscription', form.Button, '_remove_subscriptions', _('Remove all nodes from subscriptions'));
 		o.inputstyle = 'reset';
 		o.inputtitle = function() {
-			let subnodes = [];
-			uci.sections(data[0], 'node', (res) => {
-				if (res.grouphash)
-					subnodes = subnodes.concat(res['.name'])
-			});
+			let subnodes = getSubscriptionNodeIds();
 
 			if (subnodes.length > 0) {
 				return _('Remove %s nodes').format(subnodes.length);
@@ -1900,14 +1949,15 @@ return view.extend({
 			}
 		}
 		o.onclick = function() {
-			let subnodes = [];
-			uci.sections(data[0], 'node', (res) => {
-				if (res.grouphash)
-					subnodes = subnodes.concat(res['.name'])
-			});
+			let subnodes = getSubscriptionNodeIds();
 
-			for (let i in subnodes)
+			for (let i in subnodes) {
 				uci.remove(data[0], subnodes[i]);
+				delete nodeGroupById[subnodes[i]];
+			}
+
+			for (const hash in subscriptionNodeIds)
+				subscriptionNodeIds[hash] = [];
 
 			if (subnodes.includes(uci.get(data[0], 'config', 'main_node')))
 				uci.set(data[0], 'config', 'main_node', 'nil');
