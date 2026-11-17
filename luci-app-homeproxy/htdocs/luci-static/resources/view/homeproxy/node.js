@@ -507,7 +507,7 @@ function renderNodeSettings(section, data, features, main_node, routing_mode) {
 		o.modalonly = false;
 		o.inputstyle = 'apply';
 		o.inputtitle = function(section_id) {
-			if (main_node == section_id) {
+			if (uci.get(data[0], 'config', 'main_node') == section_id) {
 				this.readonly = true;
 				return _('Applied');
 			} else {
@@ -1729,42 +1729,50 @@ return view.extend({
 		 * UCI sections, reconcile the same existing references, and remove
 		 * their rows without rebuilding the entire form.
 		 */
-		const saveNodeRemovals = function(map, sectionIds, ev) {
-			const config = map.config;
-			const ids = [];
-			const seen = Object.create(null);
+		/* Serialize concurrent row deletions against the shared LuCI UCI cache. */
+		let nodeRemovalQueue = Promise.resolve();
 
-			for (const sectionId of sectionIds || []) {
-				if (!sectionId || seen[sectionId])
-					continue;
+		const saveNodeRemovals = function(map, sectionIds) {
+			const task = nodeRemovalQueue.then(() => {
+				const config = map.config;
+				const ids = [];
+				const seen = Object.create(null);
 
-				seen[sectionId] = true;
-				removeNodeFromIndexes(sectionId);
+				for (const sectionId of sectionIds || []) {
+					if (!sectionId || seen[sectionId])
+						continue;
 
-				if (uci.get(config, sectionId))
-					ids.push(sectionId);
-			}
+					seen[sectionId] = true;
 
-			if (!ids.length)
-				return Promise.resolve();
+					if (uci.get(config, sectionId)) {
+						removeNodeFromIndexes(sectionId);
+						ids.push(sectionId);
+					}
+				}
 
-			if (ev && ev.currentTarget)
-				ev.currentTarget.disabled = true;
+				if (!ids.length)
+					return;
 
-			for (const sectionId of ids) {
-				map.data.remove(config, sectionId);
+				for (const sectionId of ids) {
+					map.data.remove(config, sectionId);
 
-				const row = map.root ?
-					map.root.querySelector('tr[data-section-id="%s"]'.format(sectionId)) : null;
+					const row = map.root ?
+						map.root.querySelector('tr[data-section-id="%s"]'.format(sectionId)) : null;
 
-				if (row)
-					row.parentNode.removeChild(row);
-			}
+					if (row)
+						row.parentNode.removeChild(row);
+				}
 
-			/* Keep the existing URLTest/reference cleanup semantics unchanged. */
-			hp.reconcileUrltestNodes(data[0]);
+				/* Keep the existing URLTest/reference cleanup semantics unchanged. */
+				hp.reconcileUrltestNodes(data[0]);
 
-			return map.data.save().catch((err) => {
+				return map.data.save();
+			});
+
+			/* A failed removal must not permanently block later delete attempts. */
+			nodeRemovalQueue = task.catch(() => {});
+
+			return task.catch((err) => {
 				ui.addNotification(null, E('p', _('Unable to save node removal: %s').format(err.message || err)));
 				location.reload();
 				return Promise.reject(err);
@@ -1793,8 +1801,8 @@ return view.extend({
 		ss.filter = function(section_id) {
 			return !subscriptionHashSet[nodeGroupById[section_id]];
 		}
-		ss.handleRemove = function(section_id, ev) {
-			return saveNodeRemovals(this.map, [section_id], ev);
+		ss.handleRemove = function(section_id) {
+			return saveNodeRemovals(this.map, [section_id]);
 		}
 		/* Import subscription links start */
 		/* Thanks to luci-app-shadowsocks-libev */
@@ -1899,8 +1907,8 @@ return view.extend({
 			ss.cfgsections = function() {
 				return subscriptionNodeIds[info.hash] || [];
 			}
-			ss.handleRemove = function(section_id, ev) {
-				return saveNodeRemovals(this.map, [section_id], ev);
+			ss.handleRemove = function(section_id) {
+				return saveNodeRemovals(this.map, [section_id]);
 			}
 
 			/* Keep cached order in step with desktop and touch drag sorting,
@@ -2088,15 +2096,16 @@ return view.extend({
 		}
 		o.onclick = function(ev) {
 			const subnodes = getSubscriptionNodeIds();
+			const button = ev && ev.currentTarget;
 
 			if (!subnodes.length)
 				return Promise.resolve();
 
-			const removeCount = subnodes.length;
-			this.inputtitle = _('%s nodes removed').format(removeCount);
-			this.readonly = true;
-
-			return saveNodeRemovals(this.map, subnodes, ev);
+			return saveNodeRemovals(this.map, subnodes).then(() => {
+				/* The current render has no subscription nodes left to remove. */
+				if (button && button.parentNode)
+					button.parentNode.removeChild(button);
+			});
 		}
 		/* Subscriptions settings end */
 
