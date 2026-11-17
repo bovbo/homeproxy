@@ -16,7 +16,7 @@
 'require homeproxy as hp';
 'require tools.widgets as widgets';
 
-const HP_SETTINGS_CARD_CSS="\n.hp-settings-cards .hp-field-grid{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(min(100%,245px),285px));justify-content:start;align-items:stretch;gap:13px}\n.hp-settings-cards .hp-field-grid>:not(.cbi-value){grid-column:1/-1}\n.hp-settings-cards .hp-field-grid>.cbi-value{box-sizing:border-box;min-width:0;min-height:158px;margin:0!important;padding:14px 15px!important;display:flex;flex-direction:column;align-items:stretch;border:2px solid var(--border-color-medium,#737373)!important;border-radius:11px!important;background:var(--background-color-high,var(--background-color,#fff))!important;box-shadow:0 2px 7px rgba(0,0,0,.15)}\n.hp-settings-cards .hp-field-grid>.cbi-value:hover{border-color:var(--primary-color-high,#1769aa)!important;box-shadow:0 4px 11px rgba(0,0,0,.21)}\n.hp-settings-cards .cbi-value-title{float:none!important;width:auto!important;max-width:none!important;margin:0 0 10px!important;padding:0!important;font-weight:850!important;line-height:1.4;overflow-wrap:anywhere}\n.hp-settings-cards .cbi-value-field{float:none!important;width:auto!important;max-width:none!important;min-width:0;margin:0!important;padding:0!important;flex:1 1 auto}\n.hp-settings-cards .cbi-value-description{margin-top:10px!important;padding:8px 10px;border-left:3px solid var(--primary-color-high,#777);border-radius:5px;background:rgba(128,128,128,.10);line-height:1.45}\n.hp-settings-cards input:not([type=checkbox]):not([type=radio]),.hp-settings-cards select,.hp-settings-cards textarea{box-sizing:border-box;width:100%;max-width:100%;min-height:38px;border:2px solid var(--border-color-medium,#737373)!important;border-radius:7px!important;background:var(--background-color,#fff)!important;color:var(--text-color,inherit)!important}\n.hp-settings-cards textarea{min-height:115px}\n.hp-settings-cards input:not([type=checkbox]):not([type=radio]):focus,.hp-settings-cards select:focus,.hp-settings-cards textarea:focus{border-color:var(--primary-color-high,#1769aa)!important;outline:2px solid rgba(23,105,170,.25);outline-offset:1px}\n.hp-settings-cards .cbi-button,.hp-settings-cards button,.hp-settings-cards input[type=button],.hp-settings-cards input[type=submit]{min-height:36px;border-width:2px!important;border-radius:8px!important;font-weight:800}\n.hp-settings-cards .cbi-tabmenu>li>a{margin:3px;border:2px solid var(--border-color-medium,#737373);border-radius:8px;font-weight:800}\n.hp-settings-cards .cbi-tabmenu>li.cbi-tab>a{border-color:var(--primary-color-high,#1769aa);background:var(--primary-color-high,#1769aa);color:#fff}\n@media(max-width:680px){.hp-settings-cards .hp-field-grid{grid-template-columns:minmax(0,1fr)}.hp-settings-cards .hp-field-grid>.cbi-value{min-height:132px}}\n";
+const HP_SETTINGS_CARD_CSS="\n.hp-settings-cards .hp-field-grid{display:grid!important;grid-template-columns:repeat(2,minmax(0,285px));justify-content:start;align-items:stretch;gap:13px}\n.hp-settings-cards .hp-field-grid>:not(.cbi-value){grid-column:1/-1}\n.hp-settings-cards .hp-field-grid>.cbi-value{box-sizing:border-box;min-width:0;min-height:158px;margin:0!important;padding:14px 15px!important;display:flex;flex-direction:column;align-items:stretch;border:2px solid var(--border-color-medium,#737373)!important;border-radius:11px!important;background:var(--background-color-high,var(--background-color,#fff))!important;box-shadow:0 2px 7px rgba(0,0,0,.15)}\n.hp-settings-cards .hp-field-grid>.cbi-value:hover{border-color:var(--primary-color-high,#1769aa)!important;box-shadow:0 4px 11px rgba(0,0,0,.21)}\n.hp-settings-cards .cbi-value-title{float:none!important;width:auto!important;max-width:none!important;margin:0 0 10px!important;padding:0!important;font-weight:850!important;line-height:1.4;overflow-wrap:anywhere}\n.hp-settings-cards .cbi-value-field{float:none!important;width:auto!important;max-width:none!important;min-width:0;margin:0!important;padding:0!important;flex:1 1 auto}\n.hp-settings-cards .cbi-value-description{margin-top:10px!important;padding:8px 10px;border-left:3px solid var(--primary-color-high,#777);border-radius:5px;background:rgba(128,128,128,.10);line-height:1.45}\n.hp-settings-cards input:not([type=checkbox]):not([type=radio]),.hp-settings-cards select,.hp-settings-cards textarea{box-sizing:border-box;width:100%;max-width:100%;min-height:38px;border:2px solid var(--border-color-medium,#737373)!important;border-radius:7px!important;background:var(--background-color,#fff)!important;color:var(--text-color,inherit)!important}\n.hp-settings-cards textarea{min-height:115px}\n.hp-settings-cards input:not([type=checkbox]):not([type=radio]):focus,.hp-settings-cards select:focus,.hp-settings-cards textarea:focus{border-color:var(--primary-color-high,#1769aa)!important;outline:2px solid rgba(23,105,170,.25);outline-offset:1px}\n.hp-settings-cards .cbi-button,.hp-settings-cards button,.hp-settings-cards input[type=button],.hp-settings-cards input[type=submit]{min-height:36px;border-width:2px!important;border-radius:8px!important;font-weight:800}\n.hp-settings-cards .cbi-tabmenu>li>a{margin:3px;border:2px solid var(--border-color-medium,#737373);border-radius:8px;font-weight:800}\n.hp-settings-cards .cbi-tabmenu>li.cbi-tab>a{border-color:var(--primary-color-high,#1769aa);background:var(--primary-color-high,#1769aa);color:#fff}\n@media(max-width:680px){.hp-settings-cards .hp-field-grid{grid-template-columns:minmax(0,1fr)}.hp-settings-cards .hp-field-grid>.cbi-value{min-height:132px}}\n";
 function injectSettingsCardSkin(root){
  if(!root||!root.querySelectorAll)return root;
  root.classList?.add('hp-settings-cards');
@@ -51,8 +51,12 @@ const UIWeekPicker=ui.AbstractElement.extend({
  notify(){this.node.setAttribute('data-changed','true');this.node.dispatchEvent(new CustomEvent('widget-change',{bubbles:true}));},
  refresh(){this.chips.forEach((el,id)=>el.classList.toggle('on',this.selected.has(id)));},
  render(){
+  this.options=this.options||{};
+  this.choices=this.choices||{};
+  this.order=this.order||this.options.order||Object.keys(this.choices);
+  this.selected=this.selected||new Set();
   if(!document.getElementById('hp-week-css'))document.head.appendChild(E('style',{'id':'hp-week-css'},HP_WEEK_CSS));
-  this.chips=new Map();const frame=E('div',{'class':'hp-week','id':this.options.id});
+  this.chips=new Map();const frame=E('div',{'class':'hp-week','id':this.options.id||null});
   this.order.forEach((id)=>{
    const chip=E('div',{'class':'hp-chip','click':()=>{
     if(this.selected.has(id))this.selected.delete(id);else this.selected.add(id);
@@ -67,7 +71,16 @@ const UIWeekPicker=ui.AbstractElement.extend({
 });
 function useWeekPicker(opt){
  opt.renderWidget=function(section_id,option_index,cfgvalue){
-  return new UIWeekPicker(L.toArray((cfgvalue!=null)?cfgvalue:this.default),this.transformChoices(),{id:this.cbid(section_id),order:['1','2','3','4','5','6','0']}).render();
+  const value=L.toArray((cfgvalue!=null)?cfgvalue:this.default);
+  const choices=this.transformChoices()||{};
+  const order=['1','2','3','4','5','6','0'];
+  const options={id:this.cbid(section_id),order:order};
+  const picker=new UIWeekPicker();
+  picker.options=options;
+  picker.choices=choices;
+  picker.order=order;
+  picker.selected=new Set(value.map(String).filter((id)=>Object.prototype.hasOwnProperty.call(choices,id)));
+  return picker.render();
  };
 }
 const callSubUpdateStart=rpc.declare({object:'luci.homeproxy',method:'resources_update_start',params:['type'],expect:{'':{}}});
@@ -115,7 +128,7 @@ const HP_NODE_CARD_CSS = `
 #cbi-homeproxy-node .cbi-section-thead { display: none; }
 #cbi-homeproxy-node .cbi-section-tbody {
 	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(min(100%, 235px), 285px));
+	grid-template-columns: repeat(2, minmax(0, 285px));
 	gap: 12px;
 	width: 100%;
 }
@@ -154,8 +167,7 @@ const HP_NODE_CARD_CSS = `
 }
 #cbi-homeproxy-node .cbi-section-table-row.hp-node-current .cbi-section-table-titles { font-weight: 850; }
 #cbi-homeproxy-node .cbi-section-table-row.placeholder { display: block; grid-column: 1 / -1; }
-@media(max-width:900px){#cbi-homeproxy-node .cbi-section-tbody{grid-template-columns:repeat(auto-fill,minmax(min(100%,235px),285px))}}
-@media(max-width:560px){#cbi-homeproxy-node .cbi-section-tbody{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:680px){#cbi-homeproxy-node .cbi-section-tbody{grid-template-columns:minmax(0,1fr)}}
 `;
 function injectNodeCardCss() {
 	let style = document.getElementById('hp-node-card-css');
@@ -1953,6 +1965,10 @@ return view.extend({
 		ss.addremove = true;
 		ss.filter = function(section_id) {
 			return !subscriptionHashSet[nodeGroupById[section_id]];
+		}
+		ss.cfgsections = function() {
+			return uci.sections(data[0], 'node').map((section) => section['.name'])
+				.filter((section_id) => !subscriptionHashSet[nodeGroupById[section_id]]);
 		}
 		ss.handleRemove = function(section_id) {
 			return saveNodeRemovals(this.map, [section_id]);
