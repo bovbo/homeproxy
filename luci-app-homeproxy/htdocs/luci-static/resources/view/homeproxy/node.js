@@ -16,7 +16,7 @@
 'require homeproxy as hp';
 'require tools.widgets as widgets';
 
-const HP_SETTINGS_CARD_CSS="\n.hp-settings-cards .hp-field-grid{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(min(100%,245px),285px));justify-content:start;align-items:stretch;gap:13px}\n.hp-settings-cards .hp-field-grid>:not(.cbi-value){grid-column:1/-1}\n.hp-settings-cards .hp-field-grid>.cbi-value{box-sizing:border-box;min-width:0;min-height:158px;margin:0!important;padding:14px 15px!important;display:flex;flex-direction:column;align-items:stretch;border:2px solid var(--border-color-medium,#737373)!important;border-radius:11px!important;background:var(--background-color-high,var(--background-color,#fff))!important;box-shadow:0 2px 7px rgba(0,0,0,.15)}\n.hp-settings-cards .hp-field-grid>.cbi-value:hover{border-color:var(--primary-color-high,#1769aa)!important;box-shadow:0 4px 11px rgba(0,0,0,.21)}\n.hp-settings-cards .cbi-value-title{float:none!important;width:auto!important;max-width:none!important;margin:0 0 10px!important;padding:0!important;font-weight:850!important;line-height:1.4;overflow-wrap:anywhere}\n.hp-settings-cards .cbi-value-field{float:none!important;width:auto!important;max-width:none!important;min-width:0;margin:0!important;padding:0!important;flex:1 1 auto}\n.hp-settings-cards .cbi-value-description{margin-top:10px!important;padding:8px 10px;border-left:3px solid var(--primary-color-high,#777);border-radius:5px;background:rgba(128,128,128,.10);line-height:1.45}\n.hp-settings-cards input:not([type=checkbox]):not([type=radio]),.hp-settings-cards select,.hp-settings-cards textarea{box-sizing:border-box;width:100%;max-width:100%;min-height:38px;border:2px solid var(--border-color-medium,#737373)!important;border-radius:7px!important;background:var(--background-color,#fff)!important;color:var(--text-color,inherit)!important}\n.hp-settings-cards textarea{min-height:115px}\n.hp-settings-cards input:not([type=checkbox]):not([type=radio]):focus,.hp-settings-cards select:focus,.hp-settings-cards textarea:focus{border-color:var(--primary-color-high,#1769aa)!important;outline:2px solid rgba(23,105,170,.25);outline-offset:1px}\n.hp-settings-cards .cbi-button,.hp-settings-cards button,.hp-settings-cards input[type=button],.hp-settings-cards input[type=submit]{min-height:36px;border-width:2px!important;border-radius:8px!important;font-weight:800}\n.hp-settings-cards .cbi-tabmenu>li>a{margin:3px;border:2px solid var(--border-color-medium,#737373);border-radius:8px;font-weight:800}\n.hp-settings-cards .cbi-tabmenu>li.cbi-tab>a{border-color:var(--primary-color-high,#1769aa);background:var(--primary-color-high,#1769aa);color:#fff}\n@media(max-width:680px){.hp-settings-cards .hp-field-grid{grid-template-columns:minmax(0,1fr)}.hp-settings-cards .hp-field-grid>.cbi-value{min-height:132px}}\n";
+const HP_SETTINGS_CARD_CSS="\n.hp-settings-cards .hp-field-grid{display:grid!important;grid-template-columns:repeat(2,minmax(0,285px));justify-content:start;align-items:stretch;gap:13px}\n.hp-settings-cards .hp-field-grid>:not(.cbi-value){grid-column:1/-1}\n.hp-settings-cards .hp-field-grid>.cbi-value{box-sizing:border-box;min-width:0;min-height:158px;margin:0!important;padding:14px 15px!important;display:flex;flex-direction:column;align-items:stretch;border:2px solid var(--border-color-medium,#737373)!important;border-radius:11px!important;background:var(--background-color-high,var(--background-color,#fff))!important;box-shadow:0 2px 7px rgba(0,0,0,.15)}\n.hp-settings-cards .hp-field-grid>.cbi-value:hover{border-color:var(--primary-color-high,#1769aa)!important;box-shadow:0 4px 11px rgba(0,0,0,.21)}\n.hp-settings-cards .cbi-value-title{float:none!important;width:auto!important;max-width:none!important;margin:0 0 10px!important;padding:0!important;font-weight:850!important;line-height:1.4;overflow-wrap:anywhere}\n.hp-settings-cards .cbi-value-field{float:none!important;width:auto!important;max-width:none!important;min-width:0;margin:0!important;padding:0!important;flex:1 1 auto}\n.hp-settings-cards .cbi-value-description{margin-top:10px!important;padding:8px 10px;border-left:3px solid var(--primary-color-high,#777);border-radius:5px;background:rgba(128,128,128,.10);line-height:1.45}\n.hp-settings-cards input:not([type=checkbox]):not([type=radio]),.hp-settings-cards select,.hp-settings-cards textarea{box-sizing:border-box;width:100%;max-width:100%;min-height:38px;border:2px solid var(--border-color-medium,#737373)!important;border-radius:7px!important;background:var(--background-color,#fff)!important;color:var(--text-color,inherit)!important}\n.hp-settings-cards textarea{min-height:115px}\n.hp-settings-cards input:not([type=checkbox]):not([type=radio]):focus,.hp-settings-cards select:focus,.hp-settings-cards textarea:focus{border-color:var(--primary-color-high,#1769aa)!important;outline:2px solid rgba(23,105,170,.25);outline-offset:1px}\n.hp-settings-cards .cbi-button,.hp-settings-cards button,.hp-settings-cards input[type=button],.hp-settings-cards input[type=submit]{min-height:36px;border-width:2px!important;border-radius:8px!important;font-weight:800}\n.hp-settings-cards .cbi-tabmenu>li>a{margin:3px;border:2px solid var(--border-color-medium,#737373);border-radius:8px;font-weight:800}\n.hp-settings-cards .cbi-tabmenu>li.cbi-tab>a{border-color:var(--primary-color-high,#1769aa);background:var(--primary-color-high,#1769aa);color:#fff}\n@media(max-width:680px){.hp-settings-cards .hp-field-grid{grid-template-columns:minmax(0,1fr)}.hp-settings-cards .hp-field-grid>.cbi-value{min-height:132px}}\n";
 function injectSettingsCardSkin(root){
  if(!root||!root.querySelectorAll)return root;
  root.classList?.add('hp-settings-cards');
@@ -37,39 +37,6 @@ const callSubscriptionLogTail = rpc.declare({
 });
 
 
-const HP_WEEK_CSS=`
-.hp-week{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-.hp-chip{box-sizing:border-box;min-width:58px;text-align:center;padding:7px 13px;border:2px solid rgba(90,90,90,.82);border-radius:8px;cursor:pointer;user-select:none;font-weight:800;background:rgba(128,128,128,.10);box-shadow:0 1px 3px rgba(0,0,0,.12)}
-.hp-chip:hover{border-color:var(--primary-color-high,#1769aa)}
-.hp-chip.on{border:2px solid var(--primary-color-high,#1769aa);background:var(--primary-color-high,#1769aa);color:#fff;box-shadow:0 2px 7px rgba(0,0,0,.22)}
-.hp-week .hp-btn{cursor:pointer;padding:5px 13px;line-height:22px;border-radius:7px;border:2px solid rgba(90,90,90,.75);background:rgba(128,128,128,.14);color:inherit;font-weight:800}
-`;
-const UIWeekPicker=ui.AbstractElement.extend({
- __init(value,choices,options){this.options=options||{};this.choices=choices||{};this.order=this.options.order||Object.keys(this.choices);this.selected=new Set(L.toArray(value).map(String).filter((v)=>(v in this.choices)));},
- getValue(){return this.order.filter((id)=>this.selected.has(id));},
- setValue(value){this.selected=new Set(L.toArray(value).map(String).filter((v)=>(v in this.choices)));this.refresh();},
- notify(){this.node.setAttribute('data-changed','true');this.node.dispatchEvent(new CustomEvent('widget-change',{bubbles:true}));},
- refresh(){this.chips.forEach((el,id)=>el.classList.toggle('on',this.selected.has(id)));},
- render(){
-  if(!document.getElementById('hp-week-css'))document.head.appendChild(E('style',{'id':'hp-week-css'},HP_WEEK_CSS));
-  this.chips=new Map();const frame=E('div',{'class':'hp-week','id':this.options.id});
-  this.order.forEach((id)=>{
-   const chip=E('div',{'class':'hp-chip','click':()=>{
-    if(this.selected.has(id))this.selected.delete(id);else this.selected.add(id);
-    this.refresh();this.notify();
-   }},this.choices[id]);
-   this.chips.set(id,chip);frame.appendChild(chip);
-  });
-  frame.appendChild(E('button',{'type':'button','class':'hp-btn','click':()=>{this.order.forEach((id)=>this.selected.add(id));this.refresh();this.notify();}},'每天'));
-  frame.appendChild(E('button',{'type':'button','class':'hp-btn','click':()=>{this.selected.clear();this.refresh();this.notify();}},'清空'));
-  this.node=frame;dom.bindClassInstance(frame,this);this.refresh();return frame;
- }
-});
-function useWeekPicker(opt){
- opt.renderWidget=function(section_id,option_index,cfgvalue){
-  return new UIWeekPicker(L.toArray((cfgvalue!=null)?cfgvalue:this.default),this.transformChoices(),{id:this.cbid(section_id),order:['1','2','3','4','5','6','0']}).render();
- };
-}
 const callSubUpdateStart=rpc.declare({object:'luci.homeproxy',method:'resources_update_start',params:['type'],expect:{'':{}}});
 const callSubUpdateStatus=rpc.declare({object:'luci.homeproxy',method:'resources_update_status',params:['type'],expect:{'':{}}});
 function runSubUpdate(type,btn,map){
@@ -115,47 +82,45 @@ const HP_NODE_CARD_CSS = `
 #cbi-homeproxy-node .cbi-section-thead { display: none; }
 #cbi-homeproxy-node .cbi-section-tbody {
 	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(min(100%, 235px), 285px));
+	grid-template-columns: repeat(2, minmax(0, 1fr));
 	gap: 12px;
 	width: 100%;
 }
 #cbi-homeproxy-node .cbi-section-table-row {
 	display: flex;
-	flex-direction: column;
-	align-items: stretch;
+	align-items: center;
 	justify-content: space-between;
-	gap: 13px;
+	gap: 12px;
 	min-width: 0;
-	min-height: 148px;
 	box-sizing: border-box;
-	padding: 15px;
-	border: 2px solid var(--border-color-high, var(--border-color-medium, #737373));
-	border-radius: 11px;
-	background-color: var(--background-color-high, var(--background-color, #fff));
+	padding: 12px 14px;
+	border: 2px solid var(--border-color-medium, #8b8b8b);
+	border-radius: 10px;
+	background-color: var(--background-color, #fff);
 	color: var(--text-color, #222);
-	box-shadow: 0 2px 7px rgba(0,0,0,.15);
-	transition: border-color .15s ease, background-color .15s ease, box-shadow .15s ease;
+	transition: border-color .15s ease, background-color .15s ease;
 }
 #cbi-homeproxy-node .cbi-section-table-row > .td { min-width: 0; padding: 4px; border: 0; }
 #cbi-homeproxy-node .cbi-section-table-titles {
-	flex: 0 0 auto; width:100%; min-width:0; font-size:1.05em;
-	font-weight:850; line-height:1.45; overflow-wrap:anywhere;
+	flex: 1 1 auto; min-width: 0; font-size: 1.04em;
+	font-weight: 750; overflow-wrap: anywhere;
 }
 #cbi-homeproxy-node .cbi-section-actions {
-	display:flex; flex:0 0 auto; width:100%; align-items:center;
-	justify-content:flex-start; flex-wrap:wrap; gap:7px; white-space:normal;
+	display: flex; flex: 0 0 auto; align-items: center;
+	justify-content: flex-end; gap: 6px; white-space: nowrap;
 }
 #cbi-homeproxy-node .cbi-section-actions .cbi-button,
 #cbi-homeproxy-node .cbi-section-actions button { border-radius: 6px; }
-#cbi-homeproxy-node .cbi-section-table-row:hover { border-color:var(--primary-color-high,#1769aa); box-shadow:0 4px 11px rgba(0,0,0,.22); }
+#cbi-homeproxy-node .cbi-section-table-row:hover { border-color: #1769aa; }
 #cbi-homeproxy-node .cbi-section-table-row.hp-node-current {
 	border: 3px solid #1769aa; background-color: #dceeff;
 	color: #10243a; box-shadow: inset 5px 0 0 #1769aa;
 }
 #cbi-homeproxy-node .cbi-section-table-row.hp-node-current .cbi-section-table-titles { font-weight: 850; }
 #cbi-homeproxy-node .cbi-section-table-row.placeholder { display: block; grid-column: 1 / -1; }
-@media(max-width:900px){#cbi-homeproxy-node .cbi-section-tbody{grid-template-columns:repeat(auto-fill,minmax(min(100%,235px),285px))}}
-@media(max-width:560px){#cbi-homeproxy-node .cbi-section-tbody{grid-template-columns:minmax(0,1fr)}}
+@media (max-width: 900px) {
+	#cbi-homeproxy-node .cbi-section-tbody { grid-template-columns: minmax(0, 1fr); }
+}
 `;
 function injectNodeCardCss() {
 	let style = document.getElementById('hp-node-card-css');
@@ -1954,6 +1919,10 @@ return view.extend({
 		ss.filter = function(section_id) {
 			return !subscriptionHashSet[nodeGroupById[section_id]];
 		}
+		ss.cfgsections = function() {
+			return uci.sections(data[0], 'node').map((section) => section['.name'])
+				.filter((section_id) => !subscriptionHashSet[nodeGroupById[section_id]]);
+		}
 		ss.handleRemove = function(section_id) {
 			return saveNodeRemovals(this.map, [section_id]);
 		}
@@ -2124,7 +2093,7 @@ return view.extend({
 
 			o=s.taboption('subscription',form.MultiValue,'sub_week_'+info.hash,'「'+info.title+'」更新星期','点选需要更新的星期；一个都不选 = 每天。只有填写下面的更新时间才会自动更新。');
 			o.value('1','周一');o.value('2','周二');o.value('3','周三');o.value('4','周四');o.value('5','周五');o.value('6','周六');o.value('0','周日');
-			o.rmempty=true;useWeekPicker(o);o.depends('auto_update','1');
+			o.rmempty=true;o.depends('auto_update','1');
 
 			o=s.taboption('subscription',form.Value,'sub_hours_'+info.hash,'「'+info.title+'」更新时间（几点）','填写 0-23 的整点，多个时间用英文逗号隔开，例如 3 或 3,15；留空 = 此订阅不自动更新。');
 			o.placeholder='留空 = 不自动更新';o.rmempty=true;

@@ -14,6 +14,10 @@
 'require ui';
 'require view';
 
+const HP_STATUS_CARD_CSS=`.hp-status-cards .cbi-section{box-sizing:border-box;margin:0 0 15px;padding:14px 15px;border:2px solid var(--border-color-medium,#737373);border-radius:11px;background:var(--background-color-high,var(--background-color,#fff));box-shadow:0 2px 7px rgba(0,0,0,.15)}.hp-status-cards .cbi-value{box-sizing:border-box;min-width:0;min-height:120px;margin:0 0 12px;padding:13px;border:2px solid var(--border-color-medium,#737373);border-radius:9px;background:var(--background-color-high,var(--background-color,#fff))}.hp-status-cards .cbi-value-title{font-weight:850}.hp-status-cards textarea,.hp-status-cards pre{max-width:100%;overflow:auto;border:2px solid var(--border-color-medium,#737373);border-radius:7px;padding:10px}@media(min-width:681px){.hp-status-cards .cbi-section{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.hp-status-cards .cbi-section>h3,.hp-status-cards .cbi-section>legend{grid-column:1/-1}}`;
+function injectStatusCardSkin(root){if(!root)return root;root.classList.add('hp-status-cards');let style=document.getElementById('hp-status-card-css');if(!style){style=E('style',{'id':'hp-status-card-css'});document.head.appendChild(style);}style.textContent=HP_STATUS_CARD_CSS;return root;}
+
+
 /* Thanks to luci-app-aria2 */
 const css = '				\
 #log_textarea {				\
@@ -283,7 +287,7 @@ return view.extend({
 		o = s.option(form.DummyValue, '_sing-box-s_logview');
 		o.render = L.bind(getRuntimeLog, this, o, _('sing-box server'));
 
-		return m.render();
+		return m.render().then((root) => { injectStatusCardSkin(root); return root; });
 	},
 
 	handleSaveApply: null,
