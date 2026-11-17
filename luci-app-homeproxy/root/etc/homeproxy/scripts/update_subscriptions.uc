@@ -637,12 +637,12 @@ function main() {
 		else {
 			/* Decode URI lists only when the result looks like a real URI payload. */
 			const decoded = decodeBase64Str(res);
-			if (decoded && match(decoded, /(^|\n)[ \t]*[a-z][a-z0-9+.-]*:\/\//i))
+			if (decoded && match(decoded, /[a-z][a-z0-9+.-]*:\/\//i))
 				body = decoded;
 
 			body = replace(body, /\r/g, '');
 
-			if (match(body, /^\s*(proxies|proxy-providers)\s*:/m)) {
+			if (match(body, /^[[:space:]]*(proxies|proxy-providers)[[:space:]]*:/)) {
 				failed_subscriptions++;
 				log(sprintf('Unsupported Clash/Mihomo YAML subscription from %s; use a URI list or SIP008 JSON feed.', url));
 				progress(sprintf('Unsupported YAML subscription format at subscription %d.', sub_index + 1));
