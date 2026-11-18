@@ -97,7 +97,50 @@ if (!isEmpty(main_node) && main_node !== 'urltest' &&
     type(uci.get_all(uciconfig, main_node)) !== 'object')
 	main_node = 'nil';
 
-const main_urltest_nodes = normalizeList(uci.get(uciconfig, ucimain, 'main_urltest_nodes'));
+/*
+ * HPGROUP: 订阅组 → 节点。URLTest 可以直接选「订阅组」（grouphash，或 __manual__ = 手动节点），
+ * 并按 limit（空 = 全部 / 数字 / half）稳定取用；再与单独挑选的节点合并、去重。
+ */
+function expand_urltest_nodes(nodes, groups, limit) {
+	const result = [], seen = {};
+	limit = trim('' + (limit ?? ''));
+
+	for (let g in normalizeList(groups)) {
+		let ids = [];
+		uci.foreach(uciconfig, 'node', (c) => {
+			if ((g === '__manual__' && isEmpty(c.grouphash)) || c.grouphash === g)
+				push(ids, c['.name']);
+		});
+		ids = sort(ids);
+
+		let keep = length(ids);
+		if (limit === 'half')
+			keep = int((length(ids) + 1) / 2);
+		else if (int(limit) > 0 && int(limit) < length(ids))
+			keep = int(limit);
+
+		for (let i = 0; i < keep; i++) {
+			if (!seen[ids[i]]) {
+				seen[ids[i]] = true;
+				push(result, ids[i]);
+			}
+		}
+	}
+
+	for (let n in normalizeList(nodes)) {
+		if (!seen[n]) {
+			seen[n] = true;
+			push(result, n);
+		}
+	}
+
+	return result;
+}
+
+const main_urltest_nodes = expand_urltest_nodes(
+	uci.get(uciconfig, ucimain, 'main_urltest_nodes'),
+	uci.get(uciconfig, ucimain, 'main_urltest_groups'),
+	uci.get(uciconfig, ucimain, 'main_urltest_group_limit'));
 
 /* an URLTest group without members cannot be generated */
 if (main_node === 'urltest' && !length(main_urltest_nodes))
@@ -897,7 +940,7 @@ function app_rule_outbound(cfg) {
 		/* the endpoint is optional, fall back to the main node when it is off */
 		return tailscale_enabled ? tailscale_tag : main_out_tag;
 	case 'urltest':
-		const nodes = valid_node_list(cfg.urltest_nodes);
+		const nodes = valid_node_list(expand_urltest_nodes(cfg.urltest_nodes, cfg.urltest_groups, cfg.urltest_group_limit));
 
 		if (!length(nodes))
 			return main_out_tag;

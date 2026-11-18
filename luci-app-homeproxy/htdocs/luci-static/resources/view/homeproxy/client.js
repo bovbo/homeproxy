@@ -18,18 +18,342 @@
 'require tools.firewall as fwtool';
 'require tools.widgets as widgets';
 
-const HP_SETTINGS_CARD_CSS="\n.hp-settings-cards .hp-field-grid{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(min(100%,245px),285px));justify-content:start;align-items:stretch;gap:13px}\n.hp-settings-cards .hp-field-grid>:not(.cbi-value){grid-column:1/-1}\n.hp-settings-cards .hp-field-grid>.cbi-value{box-sizing:border-box;min-width:0;min-height:158px;margin:0!important;padding:14px 15px!important;display:flex;flex-direction:column;align-items:stretch;border:2px solid var(--border-color-medium,#737373)!important;border-radius:11px!important;background:var(--background-color-high,var(--background-color,#fff))!important;box-shadow:0 2px 7px rgba(0,0,0,.15)}\n.hp-settings-cards .hp-field-grid>.cbi-value:hover{border-color:var(--primary-color-high,#1769aa)!important;box-shadow:0 4px 11px rgba(0,0,0,.21)}\n.hp-settings-cards .cbi-value-title{float:none!important;width:auto!important;max-width:none!important;margin:0 0 10px!important;padding:0!important;font-weight:850!important;line-height:1.4;overflow-wrap:anywhere}\n.hp-settings-cards .cbi-value-field{float:none!important;width:auto!important;max-width:none!important;min-width:0;margin:0!important;padding:0!important;flex:1 1 auto}\n.hp-settings-cards .cbi-value-description{margin-top:10px!important;padding:8px 10px;border-left:3px solid var(--primary-color-high,#777);border-radius:5px;background:rgba(128,128,128,.10);line-height:1.45}\n.hp-settings-cards input:not([type=checkbox]):not([type=radio]),.hp-settings-cards select,.hp-settings-cards textarea{box-sizing:border-box;width:100%;max-width:100%;min-height:38px;border:2px solid var(--border-color-medium,#737373)!important;border-radius:7px!important;background:var(--background-color,#fff)!important;color:var(--text-color,inherit)!important}\n.hp-settings-cards textarea{min-height:115px}\n.hp-settings-cards input:not([type=checkbox]):not([type=radio]):focus,.hp-settings-cards select:focus,.hp-settings-cards textarea:focus{border-color:var(--primary-color-high,#1769aa)!important;outline:2px solid rgba(23,105,170,.25);outline-offset:1px}\n.hp-settings-cards .cbi-button,.hp-settings-cards button,.hp-settings-cards input[type=button],.hp-settings-cards input[type=submit]{min-height:36px;border-width:2px!important;border-radius:8px!important;font-weight:800}\n.hp-settings-cards .cbi-tabmenu>li>a{margin:3px;border:2px solid var(--border-color-medium,#737373);border-radius:8px;font-weight:800}\n.hp-settings-cards .cbi-tabmenu>li.cbi-tab>a{border-color:var(--primary-color-high,#1769aa);background:var(--primary-color-high,#1769aa);color:#fff}\n@media(max-width:680px){.hp-settings-cards .hp-field-grid{grid-template-columns:minmax(0,1fr)}.hp-settings-cards .hp-field-grid>.cbi-value{min-height:132px}}\n";
-function injectSettingsCardSkin(root){
- if(!root||!root.querySelectorAll)return root;
- root.classList?.add('hp-settings-cards');
- root.querySelectorAll('.cbi-section').forEach((section)=>{
-  if(Array.from(section.children).some((child)=>child.classList?.contains('cbi-value')))section.classList.add('hp-field-grid');
- });
- let style=document.getElementById('hp-settings-card-css');
- if(!style){style=E('style',{'id':'hp-settings-card-css'});document.head.appendChild(style);}
- style.textContent=HP_SETTINGS_CARD_CSS;
- return root;
+/* HP_PICKER_BEGIN —— 订阅组卡片选择器 + 节点双栏选择器（左边点击加入，右边点击移除） */
+const HP_PICKER_CSS = `
+.hp-tr, .hp-groups { --hp-accent: var(--primary-color-high, #3d9a3d); max-width: 100%; box-sizing: border-box; color: var(--text-color-high, inherit); background: transparent; }
+.hp-tr { border: 1px solid var(--border-color-medium, rgba(128,128,128,.35)); border-radius: 8px; padding: 10px; background: transparent; }
+.hp-head { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:8px; flex-wrap:wrap; }
+.hp-sum { font-weight:600; color:inherit; }
+.hp-sum b { color:var(--hp-accent); font-size:1.15em; }
+.hp-body { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px; }
+.hp-pane { border:1px solid var(--border-color-medium, rgba(128,128,128,.3)); border-radius:6px; display:flex; flex-direction:column; min-width:0; overflow:hidden; background:transparent; }
+.hp-pane-title { padding:6px 10px; font-weight:600; background:transparent; color:inherit; display:flex; justify-content:space-between; border-bottom:1px solid var(--border-color-medium, rgba(128,128,128,.25)); }
+.hp-pane-title span { font-weight:400; color:inherit; }
+.hp-tools { display:flex; gap:6px; padding:6px 8px; }
+.hp-tools input, .hp-tools select { flex:1 1 0; min-width:0; height:30px; margin:0 !important; box-sizing:border-box; }
+.hp-list { height:270px; overflow-y:auto; background:transparent; }
+.hp-row { display:flex; align-items:center; gap:6px; padding:5px 10px; cursor:pointer; border-top:1px solid var(--border-color-low, rgba(128,128,128,.12)); color:inherit; background:transparent; }
+.hp-row:hover { outline:1px solid var(--border-color-medium, rgba(128,128,128,.4)); outline-offset:-1px; }
+.hp-name { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:inherit; }
+.hp-badge { flex:none; font-size:11px; line-height:16px; padding:0 7px; border-radius:9px; border:1px solid var(--border-color-medium, rgba(128,128,128,.35)); color:inherit; background:transparent; white-space:nowrap; }
+.hp-type, .hp-grp { background:transparent; color:inherit; }
+.hp-act { flex:none; width:22px; text-align:center; font-weight:700; font-size:16px; color:var(--hp-accent); }
+.hp-sel .hp-act { color:var(--primary-color-high, #d9534f); }
+.hp-sel { border-left:2px solid var(--primary-color-high, #3d9a3d); }
+.hp-foot { padding:6px 8px; border-top:1px solid var(--border-color-medium, rgba(128,128,128,.25)); display:flex; gap:6px; justify-content:flex-end; }
+.hp-btn { cursor:pointer; padding:3px 12px; line-height:22px; border-radius:4px; border:1px solid var(--border-color-medium, rgba(128,128,128,.5)); background:transparent; color:inherit; }
+.hp-btn:hover:not([disabled]) { border-color:var(--primary-color-high, #3d9a3d); }
+.hp-btn[disabled] { opacity:.85; cursor:default; }
+.hp-btn.hp-primary { border-color:var(--primary-color-high, #3d9a3d); color:inherit; background:transparent; font-weight:650; }
+.hp-btn.hp-primary:hover:not([disabled]) { outline:1px solid var(--primary-color-high, #3d9a3d); }
+.hp-empty, .hp-more { padding:16px 10px; text-align:center; color:inherit; background:transparent; }
+.hp-more { font-size:12px; padding:8px; }
+.hp-groups { display:flex; flex-wrap:wrap; gap:10px; }
+.hp-card { position:relative; flex:0 1 270px; min-width:200px; box-sizing:border-box; padding:8px 12px 8px 38px; border:1px solid var(--border-color-medium, rgba(128,128,128,.35)); border-radius:8px; cursor:pointer; user-select:none; color:inherit; background:transparent; }
+.hp-card:hover { border-color:var(--hp-accent); }
+.hp-card::before { content:''; position:absolute; left:11px; top:50%; margin-top:-9px; width:14px; height:14px; border:1px solid var(--border-color-medium, rgba(128,128,128,.6)); border-radius:4px; }
+.hp-card.on { border:2px solid var(--hp-accent); padding:7px 11px 7px 37px; background:transparent; color:inherit; }
+.hp-card.on::before { content:'✓'; border-color:var(--hp-accent); color:var(--hp-accent); font-size:12px; line-height:14px; text-align:center; font-weight:700; background:transparent; }
+.hp-card-title { font-weight:600; color:inherit; }
+.hp-card-sub { font-size:12px; color:inherit; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.hp-eff { flex-basis:100%; box-sizing:border-box; margin:8px 0 0; padding:6px 10px; border-radius:6px; border:1px solid var(--border-color-medium, rgba(128,128,128,.3)); background:transparent; color:inherit; font-weight:600; }
+.hp-eff.hp-zero { border-color:var(--warning-color-high, #d9534f); background:transparent; color:inherit; }
+.hp-groups-tools { flex-basis:100%; display:flex; gap:6px; align-items:center; color:inherit; }
+@media (max-width: 850px) { .hp-body { grid-template-columns:minmax(0, 1fr); } }
+`;
+
+/* 「实际参与测速」实时统计：订阅组/取用数量/单独节点任何一项变化都会刷新 */
+const hpSummaries = [];
+function hpSummaryUpdate() {
+	for (let i = hpSummaries.length - 1; i >= 0; i--) {
+		const it = hpSummaries[i];
+		if (!it.el.isConnected) {
+			if (it.seen) hpSummaries.splice(i, 1);
+			continue;
+		}
+		it.seen = true;
+		let r = null;
+		try { r = it.fn(); } catch (e) { r = null; }
+		if (r) {
+			it.el.textContent = r.text;
+			it.el.classList.toggle('hp-zero', !!r.zero);
+		}
+	}
 }
+function hpSummaryRegister(el, fn) {
+	if (!hpSummaries.length)
+		document.addEventListener('widget-change', () => hpSummaryUpdate());
+	hpSummaries.push({ el: el, fn: fn, seen: false });
+	setTimeout(hpSummaryUpdate, 80);
+	setTimeout(hpSummaryUpdate, 600);
+}
+
+function hpPickerInjectCss() {
+	let style = document.getElementById('hp-picker-css');
+	if (!style) { style = E('style', { 'id': 'hp-picker-css' }); document.head.appendChild(style); }
+	style.textContent = HP_PICKER_CSS;
+}
+
+/* 订阅组：点卡片即选中/取消 */
+const UIGroupPicker = ui.AbstractElement.extend({
+	__init__(value, choices, options) {
+		this.options = options || {};
+		this.choices = choices || {};
+		this.meta = this.options.meta || {};
+		this.order = Object.keys(this.choices);
+		this.selected = L.toArray(value).filter((v) => Object.prototype.hasOwnProperty.call(this.choices, v));
+	},
+	selectedList() {
+		if (!Array.isArray(this.selected)) this.selected = [];
+		return this.selected;
+	},
+	getValue() {
+		const selected = this.selectedList();
+		return (this.order || []).filter((id) => selected.indexOf(id) >= 0);
+	},
+	setValue(value) {
+		this.selected = L.toArray(value).filter((v) => Object.prototype.hasOwnProperty.call(this.choices || {}, v));
+		this.refresh();
+	},
+	notify() {
+		if (!this.node) return;
+		this.node.setAttribute('data-changed', 'true');
+		this.node.dispatchEvent(new CustomEvent('widget-change', { bubbles: true }));
+	},
+	toggle(id) {
+		const selected = this.selectedList();
+		const index = selected.indexOf(id);
+		if (index >= 0) selected.splice(index, 1); else selected.push(id);
+		this.refresh();
+		this.notify();
+	},
+	refresh() {
+		if (!this.cards) return;
+		const selected = this.selectedList();
+		this.cards.forEach((el, id) => el.classList.toggle('on', selected.indexOf(id) >= 0));
+	},
+	render() {
+		hpPickerInjectCss();
+		this.choices = this.choices || {};
+		this.meta = this.meta || {};
+		this.order = this.order || Object.keys(this.choices);
+		this.cards = new Map();
+		const frame = E('div', { 'class': 'hp-groups', 'id': this.options?.id });
+
+		if (!this.order.length) {
+			frame.appendChild(E('div', { 'class': 'hp-empty' }, '还没有订阅节点组，请先到「节点设置」添加订阅并更新。'));
+		} else {
+			frame.appendChild(E('div', { 'class': 'hp-groups-tools' }, [
+				E('button', { 'type': 'button', 'class': 'hp-btn', 'click': () => {
+					this.selected = (this.order || []).slice(); this.refresh(); this.notify();
+				} }, '全选'),
+				E('button', { 'type': 'button', 'class': 'hp-btn', 'click': () => {
+					this.selected = []; this.refresh(); this.notify();
+				} }, '全不选'),
+				E('span', { 'style': 'font-size:12px' }, '点一下卡片即选中 / 取消')
+			]));
+			this.order.forEach((id) => {
+				const m = this.meta[id] || { title: this.choices[id] || id, count: 0, sample: '' };
+				const card = E('div', { 'class': 'hp-card', 'title': m.sample || '', 'click': () => this.toggle(id) }, [
+					E('div', { 'class': 'hp-card-title' }, m.title || this.choices[id] || id),
+					E('div', { 'class': 'hp-card-sub' }, '%d 个节点%s'.format(Number(m.count) || 0, m.sample ? '　例：' + m.sample : ''))
+				]);
+				this.cards.set(id, card);
+				frame.appendChild(card);
+			});
+		}
+
+		if (this.options?.effective) {
+			const eff = E('div', { 'class': 'hp-eff' });
+			frame.appendChild(eff);
+			hpSummaryRegister(eff, this.options.effective);
+		}
+
+		this.node = frame;
+		dom.bindClassInstance(frame, this);
+		this.refresh();
+		return frame;
+	}
+});
+
+/* 单个节点：左边「可选」，右边「已选」，点一下加入/移除，带搜索和订阅组筛选 */
+const UINodePicker = ui.AbstractElement.extend({
+	MAX_ROWS: 120,
+
+	__init__(value, choices, options) {
+		this.options = options || {};
+		this.choices = choices || {};
+		this.meta = this.options.meta || {};
+		this.order = Object.keys(this.choices);
+		this.selected = L.toArray(value).filter((v) => Object.prototype.hasOwnProperty.call(this.choices, v));
+		this.lq = '';
+		this.rq = '';
+		this.gf = '';
+	},
+	selectedList() {
+		if (!Array.isArray(this.selected)) this.selected = [];
+		return this.selected;
+	},
+	getValue() {
+		const selected = this.selectedList();
+		return (this.order || []).filter((id) => selected.indexOf(id) >= 0);
+	},
+	setValue(value) {
+		this.selected = L.toArray(value).filter((v) => Object.prototype.hasOwnProperty.call(this.choices || {}, v));
+		this.refresh();
+	},
+	notify() {
+		if (!this.node) return;
+		this.node.setAttribute('data-changed', 'true');
+		this.node.dispatchEvent(new CustomEvent('widget-change', { bubbles: true }));
+	},
+	info(id) {
+		const m = (this.meta || {})[id];
+		return m ? m : { type: '', group: '', name: (this.choices || {})[id] || id };
+	},
+	match(id, q) {
+		if (!q) return true;
+		const m = this.info(id);
+		return (String(m.name || '') + ' ' + String(m.type || '') + ' ' + String(m.group || '')).toLowerCase().indexOf(q) >= 0;
+	},
+	add(id) {
+		const selected = this.selectedList();
+		if (selected.indexOf(id) < 0) selected.push(id);
+		this.refresh(); this.notify();
+	},
+	remove(id) {
+		const selected = this.selectedList();
+		const index = selected.indexOf(id);
+		if (index >= 0) selected.splice(index, 1);
+		this.refresh(); this.notify();
+	},
+	row(id, isSel) {
+		const m = this.info(id);
+		const kids = [];
+		if (m.type) kids.push(E('span', { 'class': 'hp-badge hp-type' }, m.type));
+		if (m.group) kids.push(E('span', { 'class': 'hp-badge hp-grp' }, m.group));
+		kids.push(E('span', { 'class': 'hp-name' }, m.name || id));
+		kids.push(E('span', { 'class': 'hp-act' }, isSel ? '×' : '＋'));
+		return E('div', {
+			'class': 'hp-row' + (isSel ? ' hp-sel' : ''),
+			'title': '[%s] %s %s'.format(m.type || '', m.group || '', m.name || id),
+			'click': () => (isSel ? this.remove(id) : this.add(id))
+		}, kids);
+	},
+	fill(listEl, ids, emptyText) {
+		const top = listEl.scrollTop;
+		while (listEl.firstChild) listEl.removeChild(listEl.firstChild);
+		if (!ids.length) {
+			listEl.appendChild(E('div', { 'class': 'hp-empty' }, emptyText));
+			return;
+		}
+		const isSel = (listEl === this.rList);
+		ids.slice(0, this.MAX_ROWS).forEach((id) => listEl.appendChild(this.row(id, isSel)));
+		if (ids.length > this.MAX_ROWS)
+			listEl.appendChild(E('div', { 'class': 'hp-more' },
+				'还有 %d 个没显示，请在上面搜索或选订阅组缩小范围'.format(ids.length - this.MAX_ROWS)));
+		listEl.scrollTop = top;
+	},
+	refresh() {
+		if (!this.node) return;
+		const selected = this.selectedList();
+		const order = this.order || [];
+		const left = order.filter((id) =>
+			selected.indexOf(id) < 0 && this.match(id, this.lq) && (!this.gf || this.info(id).group === this.gf));
+		const right = order.filter((id) => selected.indexOf(id) >= 0 && this.match(id, this.rq));
+
+		this.leftIds = left;
+		this.sumEl.textContent = '';
+		this.sumEl.appendChild(document.createTextNode('已选 '));
+		this.sumEl.appendChild(E('b', {}, String(selected.length)));
+		this.sumEl.appendChild(document.createTextNode(' 个单独挑选的节点（共 %d 个）'.format(order.length)));
+
+		this.lCount.textContent = '%d 个'.format(left.length);
+		this.rCount.textContent = '%d 个'.format(selected.length);
+		this.fill(this.lList, left, order.length ? '没有可加入的节点（已全部选中，或被搜索条件过滤）' : '还没有任何节点');
+		this.fill(this.rList, right, selected.length ? '没有匹配的已选节点' : '还没有选节点——在左边点一下就加入');
+
+		this.addAllBtn.textContent = '全部加入（%d）'.format(left.length);
+		this.addAllBtn.disabled = !left.length;
+		this.clearBtn.disabled = !selected.length;
+	},
+	render() {
+		hpPickerInjectCss();
+		this.choices = this.choices || {};
+		this.meta = this.meta || {};
+		this.order = this.order || Object.keys(this.choices);
+		this.lList = E('div', { 'class': 'hp-list' });
+		this.rList = E('div', { 'class': 'hp-list' });
+		this.lCount = E('span');
+		this.rCount = E('span');
+		this.sumEl = E('div', { 'class': 'hp-sum' });
+		this.effEl = E('div', { 'class': 'hp-eff', 'style': this.options?.effective ? '' : 'display:none' });
+		if (this.options?.effective) hpSummaryRegister(this.effEl, this.options.effective);
+
+		const groups = [];
+		this.order.forEach((id) => {
+			const g = this.info(id).group;
+			if (g && groups.indexOf(g) < 0) groups.push(g);
+		});
+
+		const lSearch = E('input', { 'type': 'search', 'placeholder': '搜索节点名 / 类型 / 订阅组…', 'autocomplete': 'off' });
+		lSearch.addEventListener('input', () => { this.lq = lSearch.value.trim().toLowerCase(); this.refresh(); });
+		lSearch.addEventListener('keydown', (ev) => {
+			if (ev.key === 'Enter') {
+				ev.preventDefault();
+				if (this.leftIds && this.leftIds.length) this.add(this.leftIds[0]);
+			}
+		});
+		const lTools = [lSearch];
+		if (groups.length > 1) {
+			const sel = E('select', {}, [E('option', { 'value': '' }, '全部分组')].concat(
+				groups.map((g) => E('option', { 'value': g }, g))));
+			sel.addEventListener('change', () => { this.gf = sel.value; this.refresh(); });
+			lTools.push(sel);
+		}
+
+		const rSearch = E('input', { 'type': 'search', 'placeholder': '在已选中搜索…', 'autocomplete': 'off' });
+		rSearch.addEventListener('input', () => { this.rq = rSearch.value.trim().toLowerCase(); this.refresh(); });
+
+		this.addAllBtn = E('button', { 'type': 'button', 'class': 'hp-btn hp-primary', 'click': () => {
+			const selected = this.selectedList();
+			(this.leftIds || []).forEach((id) => { if (selected.indexOf(id) < 0) selected.push(id); });
+			this.refresh(); this.notify();
+		} }, '全部加入');
+		this.clearBtn = E('button', { 'type': 'button', 'class': 'hp-btn', 'click': () => {
+			this.selected = []; this.refresh(); this.notify();
+		} }, '清空已选');
+
+		const frame = E('div', { 'class': 'hp-tr', 'id': this.options?.id }, [
+			E('div', { 'class': 'hp-head' }, [
+				this.sumEl,
+				E('span', { 'style': 'font-size:12px' }, '左边点一下＝加入，右边点一下＝移除；保存并应用后生效')
+			]),
+			this.effEl,
+			E('div', { 'class': 'hp-body' }, [
+				E('div', { 'class': 'hp-pane' }, [
+					E('div', { 'class': 'hp-pane-title' }, [E('div', '可选节点'), this.lCount]),
+					E('div', { 'class': 'hp-tools' }, lTools),
+					this.lList,
+					E('div', { 'class': 'hp-foot' }, [this.addAllBtn])
+				]),
+				E('div', { 'class': 'hp-pane' }, [
+					E('div', { 'class': 'hp-pane-title' }, [E('div', '已选节点'), this.rCount]),
+					E('div', { 'class': 'hp-tools' }, [rSearch]),
+					this.rList,
+					E('div', { 'class': 'hp-foot' }, [this.clearBtn])
+				])
+			])
+		]);
+
+		this.node = frame;
+		dom.bindClassInstance(frame, this);
+		this.refresh();
+		return frame;
+	}
+});
+
+/* HP_PICKER_END */
 
 
 const callServiceList = rpc.declare({
@@ -194,6 +518,138 @@ return view.extend({
 					String.format('[%s]', nodeaddr) : nodeaddr) + ':' + nodeport));
 		});
 
+		/* 订阅节点组：按 grouphash 归类，标签显示订阅域名 + 节点数；无 grouphash 的归为「手动添加节点」 */
+		let group_labels = {}, group_counts = {}, group_sample = {}, group_order = [];
+		uci.sections(data[0], 'node', (res) => {
+			let g = res.grouphash || '';
+			if (!g) return;
+			if (!group_counts[g]) {
+				group_order.push(g);
+				group_sample[g] = res.label || res.address || '';
+			}
+			group_counts[g] = (group_counts[g] || 0) + 1;
+		});
+		group_order.forEach((g, idx) => {
+			group_labels[g] = String.format('订阅组%d [%s] — %d 个节点（例：%s）',
+				idx + 1, g.substring(0, 6), group_counts[g], String(group_sample[g]).substring(0, 20));
+		});
+		let has_manual_nodes = false;
+		uci.sections(data[0], 'node', (res) => { if (!res.grouphash) has_manual_nodes = true; });
+
+		/* 节点勾选框列表：标签前面带上所属订阅组，方便按订阅挑选 */
+		let node_group_tag = {};
+		group_order.forEach((g, idx) => { node_group_tag[g] = '订阅组' + (idx + 1); });
+		let list_nodes = {};
+		uci.sections(data[0], 'node', (res) => {
+			list_nodes[res['.name']] = String.format('[%s] %s',
+				res.grouphash ? (node_group_tag[res.grouphash] || '订阅') : '手动', proxy_nodes[res['.name']]);
+		});
+
+		/* 节点附加信息：类型 / 所属订阅组 / 名称，供双栏选择器显示 */
+		let node_meta = {};
+		uci.sections(data[0], 'node', (res) => {
+			let a = res.address || '', p = res.port || '';
+			node_meta[res['.name']] = {
+				type: res.type || '',
+				group: res.grouphash ? (node_group_tag[res.grouphash] || '订阅') : '手动',
+				name: res.label || ((stubValidator.apply('ip6addr', a) ? String.format('[%s]', a) : a) + ':' + p)
+			};
+		});
+
+		/* 订阅组卡片信息 */
+		let group_meta = {};
+		group_order.forEach((g, idx) => {
+			group_meta[g] = {
+				title: '订阅组' + (idx + 1) + '（' + g.substring(0, 6) + '）',
+				count: group_counts[g],
+				sample: String(group_sample[g]).substring(0, 24)
+			};
+		});
+		let manual_count = 0;
+		uci.sections(data[0], 'node', (res) => { if (!res.grouphash) manual_count++; });
+		group_meta['__manual__'] = { title: '手动添加的节点', count: manual_count, sample: '没有订阅链接的节点' };
+
+		/* 每个订阅组的节点 id（排序后取前 N / 一半，规则与 generate_client.uc 一致） */
+		let group_ids = { '__manual__': [] };
+		uci.sections(data[0], 'node', (res) => {
+			let g = res.grouphash || '__manual__';
+			if (!group_ids[g]) group_ids[g] = [];
+			group_ids[g].push(res['.name']);
+		});
+		for (let g in group_ids) group_ids[g].sort();
+
+		function make_effective(base, option) {
+			let kind = /_groups$/.test(option) ? '_groups$' : '_nodes$';
+			let prefix = base.slice(0, base.length - option.length);
+			let gName = option.replace(new RegExp(kind), '_groups'),
+			    lName = option.replace(new RegExp(kind), '_group_limit'),
+			    nName = option.replace(new RegExp(kind), '_nodes');
+			let val = (name) => {
+				let el = document.getElementById(prefix + name);
+				let inst = el ? dom.findClassInstance(el) : null;
+				return inst ? inst.getValue() : null;
+			};
+			return function() {
+				let groups = L.toArray(val(gName)), nodes = L.toArray(val(nName));
+				let lim = val(lName);
+				lim = (lim == null) ? '' : String(lim);
+				let selectedIds = [];
+				groups.forEach((g) => {
+					let ids = group_ids[g] || [], keep = ids.length;
+					if (lim === 'half') keep = Math.floor((ids.length + 1) / 2);
+					else if (parseInt(lim) > 0 && parseInt(lim) < ids.length) keep = parseInt(lim);
+					ids.slice(0, keep).forEach((id) => { if (selectedIds.indexOf(id) < 0) selectedIds.push(id); });
+				});
+				let fromGroups = selectedIds.length, extra = 0;
+				nodes.forEach((id) => { if (selectedIds.indexOf(id) < 0) { extra++; selectedIds.push(id); } });
+				let limText = (lim === 'half') ? '每组取一半' : (parseInt(lim) > 0 ? '每组取 ' + lim + ' 个' : '每组取全部');
+				let text;
+				if (!selectedIds.length)
+					text = '实际参与测速：0 个——请点上面的订阅组卡片，或在下面挑选节点';
+				else if (!groups.length)
+					text = '实际参与测速：共 %d 个（只有单独挑选的节点，没有选订阅组）'.format(selectedIds.length);
+				else
+					text = '实际参与测速：共 %d 个 ＝ 订阅组带入 %d 个（已选 %d 个组，%s）＋ 单独挑选 %d 个（与组重复的已去掉）'.format(selectedIds.length, fromGroups, groups.length, limText, extra);
+				return { text: text, zero: !selectedIds.length };
+			};
+		}
+
+		function add_node_values(opt) {
+			for (let i in list_nodes) opt.value(i, list_nodes[i]);
+			opt.renderWidget = function(section_id, option_index, cfgvalue) {
+				const widget = new UINodePicker(L.toArray((cfgvalue != null) ? cfgvalue : this.default), this.transformChoices(), {
+					id: this.cbid(section_id),
+					meta: node_meta,
+					disabled: (this.readonly != null) ? this.readonly : this.map.readonly
+				});
+				return widget.render();
+			};
+		}
+
+		function add_limit_values(opt) {
+			opt.value('', '全部节点');
+			opt.value('10', '每组只取 10 个');
+			opt.value('20', '每组只取 20 个');
+			opt.value('50', '每组只取 50 个');
+			opt.value('100', '每组只取 100 个');
+			opt.value('half', '每组只取一半');
+			opt.default = '';
+		}
+
+		function add_group_values(opt) {
+			for (let g in group_labels) opt.value(g, group_labels[g]);
+			if (has_manual_nodes) opt.value('__manual__', '手动添加的节点（无订阅）');
+			opt.renderWidget = function(section_id, option_index, cfgvalue) {
+				const widget = new UIGroupPicker(L.toArray((cfgvalue != null) ? cfgvalue : this.default), this.transformChoices(), {
+					id: this.cbid(section_id),
+					meta: group_meta,
+					effective: make_effective(this.cbid(section_id), this.option),
+					disabled: (this.readonly != null) ? this.readonly : this.map.readonly
+				});
+				return widget.render();
+			};
+		}
+
 		m = new form.Map('homeproxy', _('HomeProxy'),
 			_('The modern ImmortalWrt proxy platform for ARM64/AMD64.'));
 
@@ -259,12 +715,25 @@ return view.extend({
 		o.rmempty = false;
 		o.retain = true;
 
-		o = s.taboption('routing', hp.CBIStaticList, 'main_urltest_nodes', _('URLTest nodes'),
-			_('List of nodes to test.'));
-		for (let i in proxy_nodes)
-			o.value(i, proxy_nodes[i]);
+		o = s.taboption('routing', form.MultiValue, 'main_urltest_groups', '自动测速订阅组',
+			'点一下卡片即选中整个订阅组：该订阅的节点（按下面「订阅组取用数量」）在生成配置时自动带入。');
+		add_group_values(o);
 		o.depends('main_node', 'urltest');
-		o.rmempty = false;
+		o.rmempty = true;
+		o.retain = true;
+
+		o = s.taboption('routing', form.ListValue, 'main_urltest_group_limit', '订阅组取用数量',
+			'对上面勾选的每个订阅组生效：只取其中固定的一部分节点参与测速（稳定抽取，订阅更新后尽量不变），可以大幅减少测速请求次数。');
+		add_limit_values(o);
+		o.depends('main_node', 'urltest');
+		o.rmempty = true;
+		o.retain = true;
+
+		o = s.taboption('routing', form.MultiValue, 'main_urltest_nodes', '单独挑选节点',
+			'左边点节点＝加入，右边点 × ＝移除（可搜索、可按订阅组筛选、可一键全部加入）；可与上面的订阅组叠加。');
+		add_node_values(o);
+		o.depends('main_node', 'urltest');
+		o.rmempty = true;
 		/* keep the selection when another main node is used */
 		o.retain = true;
 
@@ -549,12 +1018,27 @@ return view.extend({
 		so.rmempty = false;
 		so.editable = true;
 
-		so = ss.option(hp.CBIStaticList, 'urltest_nodes', _('URLTest nodes'),
-			_('List of nodes to test.'));
-		for (let i in proxy_nodes)
-			so.value(i, proxy_nodes[i]);
+		so = ss.option(form.MultiValue, 'urltest_groups', '自动测速订阅组',
+			'点一下卡片即选中整个订阅组（如 YouTube、国外AI 直接指定某订阅）：该订阅的节点参与测速，订阅更新后自动跟随。可与下面单独挑选的节点叠加。');
+		add_group_values(so);
 		so.depends('node', 'urltest');
-		so.rmempty = false;
+		so.rmempty = true;
+		so.modalonly = true;
+		so.retain = true;
+
+		so = ss.option(form.ListValue, 'urltest_group_limit', '订阅组取用数量',
+			'对上面勾选的每个订阅组生效：只取其中固定的一部分节点参与测速（稳定抽取，订阅更新后尽量不变），可以大幅减少测速请求次数。');
+		add_limit_values(so);
+		so.depends('node', 'urltest');
+		so.rmempty = true;
+		so.modalonly = true;
+		so.retain = true;
+
+		so = ss.option(form.MultiValue, 'urltest_nodes', '单独挑选节点',
+			'左边点节点＝加入，右边点 × ＝移除（可搜索、可按订阅组筛选、可一键全部加入）；可与上面的订阅组叠加。');
+		add_node_values(so);
+		so.depends('node', 'urltest');
+		so.rmempty = true;
 		so.modalonly = true;
 		so.retain = true;
 
@@ -879,6 +1363,6 @@ return view.extend({
 		so.depends('enabled', '1');
 		/* Tailscale settings end */
 
-		return m.render().then((root)=>{injectSettingsCardSkin(root);return root;});
+		return m.render();
 	}
 });
