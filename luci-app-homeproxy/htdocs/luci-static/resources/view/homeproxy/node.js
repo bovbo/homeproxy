@@ -108,8 +108,25 @@ const HP_WEEK_CSS = `
 .hp-hour-chip:hover { border-color:var(--primary-color-high, #1769aa); }
 .hp-hour-chip.on { border-color:var(--primary-color-high, #1769aa); background:var(--primary-color-high, #1769aa); color:#fff; }
 .hp-hour-tools { display:flex; flex-wrap:wrap; gap:6px; margin-top:7px; }
+
+.cbi-value:has(.hp-sub-manager) { display: block !important; grid-template-columns: minmax(0, 1fr) !important; }
+.cbi-value:has(.hp-sub-manager) > .cbi-value-title { display: none !important; }
+.cbi-value:has(.hp-sub-manager) > .cbi-value-field { display: block !important; float: none !important; grid-column: 1 / -1 !important; width: 100% !important; max-width: none !important; margin: 0 !important; padding: 0 !important; }
+.hp-sub-manager { margin: 4px 0 10px; padding: 10px; }
+.hp-sub-grid { gap: 10px; }
+.hp-sub-card-top { padding: 6px 11px; }
+.hp-sub-body { gap: 7px; padding: 8px 11px; }
+.hp-sub-plan { padding: 4px 9px; }
+.hp-sub-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.hp-sub-line .hp-sub-control-title { flex: 0 0 auto; margin: 0; min-width: 4.2em; }
+.hp-sub-line .hp-week { flex: 1 1 0; min-width: 0; gap: 5px; }
+.hp-sub-line .hp-chip { min-width: 0; padding: 2px 9px; border-radius: 6px; }
+.hp-sub-line .hp-week .hp-btn { padding: 1px 9px; line-height: 20px; }
+.hp-hour-input { flex: 1 1 0; min-width: 0; box-sizing: border-box; height: 32px; padding: 0 10px; border: 2px solid var(--border-color-high, #7d8790); border-radius: 7px; background: var(--background-color, #fff); color: inherit; font-weight: 700; }
+.hp-hour-input:focus { border-color: var(--primary-color-high, #1769aa); outline: none; }
+.hp-hour-input.is-bad { border-color: #d64545; background: rgba(214,69,69,.10); }
+.hp-sub-actions { padding-top: 0; }
 @media (max-width: 900px) { .hp-sub-grid { grid-template-columns:minmax(0, 1fr); } }
-@media (max-width: 520px) { .hp-hour-grid { grid-template-columns:repeat(6, minmax(0, 1fr)); } }
 `;
 function injectSubCss() {
 	let style = document.getElementById('hp-week-css');
@@ -163,68 +180,21 @@ const UIWeekPicker = ui.AbstractElement.extend({
 	}
 });
 
-const UIHourPicker = ui.AbstractElement.extend({
-	__init__(value, options) {
-		this.options = options || {};
-		this.selected = this.parse(value);
-	},
-	parse(value) {
-		return String(value || '').split(/[ ,]+/).filter(Boolean).map(Number).filter((h) => Number.isInteger(h) && h >= 0 && h <= 23);
-	},
-	getValue() { return this.selected.slice().sort((a, b) => a - b).join(','); },
-	setValue(value) { this.selected = this.parse(value); this.refresh(); },
-	notify() {
-		if (this.node) {
-			this.node.setAttribute('data-changed', 'true');
-			this.node.dispatchEvent(new CustomEvent('widget-change', { bubbles: true }));
-		}
-		if (typeof this.options.onChange === 'function') this.options.onChange(this.getValue());
-	},
-	toggle(hour) {
-		const i = this.selected.indexOf(hour);
-		if (i >= 0) this.selected.splice(i, 1); else this.selected.push(hour);
-		this.refresh(); this.notify();
-	},
-	refresh() {
-		if (!this.chips) return;
-		this.chips.forEach((el, hour) => el.classList.toggle('on', this.selected.indexOf(hour) >= 0));
-	},
-	render() {
-		injectSubCss();
-		this.chips = new Map();
-		const frame = E('div', { 'class': 'hp-hour-picker', 'id': this.options.id });
-		const grid = E('div', { 'class': 'hp-hour-grid' });
-		for (let hour = 0; hour < 24; hour++) {
-			const chip = E('button', { 'type': 'button', 'class': 'hp-hour-chip', 'click': () => this.toggle(hour) }, String(hour).padStart(2, '0') + ':00');
-			this.chips.set(hour, chip);
-			grid.appendChild(chip);
-		}
-		const setAll = (list) => () => { this.selected = list.slice(); this.refresh(); this.notify(); };
-		frame.appendChild(grid);
-		frame.appendChild(E('div', { 'class': 'hp-hour-tools' }, [
-			E('button', { 'type': 'button', 'class': 'hp-btn', 'click': setAll(Array.from({ length: 24 }, (_, i) => i)) }, '每小时'),
-			E('button', { 'type': 'button', 'class': 'hp-btn', 'click': setAll([0, 6, 12, 18]) }, '每 6 小时'),
-			E('button', { 'type': 'button', 'class': 'hp-btn', 'click': setAll([3]) }, '每天 03:00'),
-			E('button', { 'type': 'button', 'class': 'hp-btn', 'click': setAll([]) }, '清空')
-		]));
-		this.node = frame;
-		dom.bindClassInstance(frame, this);
-		this.refresh();
-		return frame;
-	}
-});
-
 const callSubUpdateStart = rpc.declare({ object: 'luci.homeproxy', method: 'resources_update_start', params: ['type'], expect: { '': {} } });
 const callSubUpdateStatus = rpc.declare({ object: 'luci.homeproxy', method: 'resources_update_status', params: ['type'], expect: { '': {} } });
 
 /* 先保存并应用当前设置，再把更新任务交给路由器后台；页面只轮询状态 */
+function hpApplyPending() {
+	return L.resolveDefault(uci.changes(), {}).then((ch) => (ch && Object.keys(ch).length) ? ui.changes.apply(true) : null);
+}
+
 function runSubUpdate(type, btn, map, statusEl) {
 	const originalText = btn ? btn.textContent : '';
 	const setStatus = (state, message) => { if (statusEl) { statusEl.dataset.state = state; statusEl.textContent = message; } };
 	const release = () => { if (btn) { btn.disabled = false; btn.textContent = originalText; } };
 	if (btn) { btn.disabled = true; btn.textContent = '提交中…'; }
 	setStatus('queued', '正在保存设置并提交任务…');
-	return Promise.resolve(map ? map.save(null, true) : null).then(() => ui.changes.apply(true))
+	return Promise.resolve(map ? map.save(null, true) : null).then(() => hpApplyPending())
 	.then(() => callSubUpdateStart(type)).then((res) => {
 		if (!res?.result) {
 			const msg = res?.error || '后台服务没有响应，请确认已安装包含后台更新接口的新版 luci-app-homeproxy';
@@ -279,7 +249,7 @@ function renderSubscriptionDashboard(subinfo, data, map) {
 	const saveButton = E('button', { 'type': 'button', 'class': 'hp-sub-btn',
 		'click': () => {
 			saveButton.disabled = true; saveButton.textContent = '保存中…';
-			return map.save(null, true).then(() => ui.changes.apply(true)).then(() => {
+			return map.save(null, true).then(() => hpApplyPending()).then(() => {
 				globalStatus.dataset.state = 'success'; globalStatus.textContent = '订阅和定时设置已保存';
 			}).catch((err) => {
 				globalStatus.dataset.state = 'error'; globalStatus.textContent = '保存失败：' + err;
@@ -324,14 +294,30 @@ function renderSubscriptionDashboard(subinfo, data, map) {
 				refreshPlan(); markDirty();
 			}
 		});
-		const hourWidget = new UIHourPicker(rawHours, {
-			id: 'hp-hours-' + info.hash,
-			onChange: (value) => {
-				selectedHours = value ? value.split(',').map(Number) : [];
-				uci.set(data[0], 'subscription', 'sub_hours_' + info.hash, value || null);
-				refreshPlan(); markDirty();
+		/* 更新时间：手写整点，例如 3 或 3,15；留空 = 此订阅不自动更新 */
+		const hourInput = E('input', { 'type': 'text', 'class': 'hp-hour-input', 'id': 'hp-hours-' + info.hash, 'autocomplete': 'off',
+			'placeholder': '手写整点：3 或 3,15（0-23，逗号隔开）；留空 = 不自动更新', 'value': String(rawHours || '') });
+		const applyHours = (commit) => {
+			const tokens = hourInput.value.split(/[,，、\s]+/).filter(Boolean);
+			const nums = tokens.map((t) => (/^\d{1,2}$/.test(t) ? parseInt(t, 10) : -1));
+			const bad = nums.some((h) => h < 0 || h > 23);
+			hourInput.classList.toggle('is-bad', bad);
+			if (bad) {
+				globalStatus.dataset.state = 'error'; globalStatus.textContent = '更新时间只能写 0-23 的整点，多个用逗号隔开，例如 3,15';
+				return;
 			}
-		});
+			const list = Array.from(new Set(nums)).sort((x, y) => x - y);
+			selectedHours = list;
+			if (commit) {
+				const value = list.join(',');
+				hourInput.value = value;
+				uci.set(data[0], 'subscription', 'sub_hours_' + info.hash, value || null);
+				markDirty();
+			}
+			refreshPlan();
+		};
+		hourInput.addEventListener('input', () => applyHours(false));
+		hourInput.addEventListener('change', () => applyHours(true));
 		const status = E('span', { 'class': 'hp-sub-status', 'aria-live': 'polite' }, '就绪');
 		const button = E('button', { 'type': 'button', 'class': 'hp-sub-btn hp-sub-btn-primary',
 			'click': () => runSubUpdate('sub_' + info.hash, button, map, status) }, '仅更新此订阅');
@@ -345,8 +331,8 @@ function renderSubscriptionDashboard(subinfo, data, map) {
 			]),
 			E('div', { 'class': 'hp-sub-body' }, [
 				plan,
-				E('div', {}, [ E('div', { 'class': 'hp-sub-control-title' }, '更新星期（不选 = 每天）'), weekWidget.render() ]),
-				E('div', {}, [ E('div', { 'class': 'hp-sub-control-title' }, '更新时间（可多选整点；不选 = 此订阅不自动更新）'), hourWidget.render() ]),
+				E('div', { 'class': 'hp-sub-line' }, [ E('span', { 'class': 'hp-sub-control-title' }, '更新星期'), weekWidget.render() ]),
+				E('div', { 'class': 'hp-sub-line' }, [ E('span', { 'class': 'hp-sub-control-title' }, '更新时间'), hourInput ]),
 				E('div', { 'class': 'hp-sub-actions' }, [ button, status ])
 			])
 		]));
