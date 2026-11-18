@@ -71,108 +71,64 @@ const callSubscriptionLogTail = rpc.declare({
 });
 
 
-/* ===== 订阅定时：星期卡片 + 整点卡片（不用下拉框，避免页面卡死） ===== */
+/* 星期选择：7 个点选小卡片（不用下拉框，不卡） */
 const HP_WEEK_CSS = `
-.hp-week { display:flex; flex-wrap:wrap; gap:7px; align-items:center; }
-.hp-chip { box-sizing:border-box; min-width:54px; text-align:center; padding:6px 10px; border:2px solid var(--border-color-high, #7d8790); border-radius:8px; cursor:pointer; user-select:none; font-weight:800; background:rgba(128,128,128,.10); color:inherit; }
-.hp-chip:hover { border-color:var(--primary-color-high, #1769aa); }
-.hp-chip.on { border-color:var(--primary-color-high, #1769aa); background:var(--primary-color-high, #1769aa); color:#fff; }
-.hp-week .hp-btn, .hp-hour-tools .hp-btn { cursor:pointer; padding:4px 11px; line-height:22px; border-radius:7px; border:2px solid var(--border-color-high, #7d8790); background:rgba(128,128,128,.14); color:inherit; font-weight:800; }
-.hp-sub-manager { margin:8px 0 14px; padding:15px; border:2px solid var(--border-color-high, #7d8790); border-radius:12px; background:var(--background-color-high, transparent); }
-.hp-sub-head { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:14px; }
-.hp-sub-heading { font-size:1.15em; font-weight:850; }
-.hp-sub-hint { margin-top:4px; font-size:.92em; }
-.hp-sub-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:14px; align-items:stretch; }
-.hp-sub-card { display:flex; flex-direction:column; min-width:0; padding:0; border:2px solid var(--border-color-high, #7d8790); border-radius:11px; overflow:hidden; background:var(--background-color, transparent); box-shadow:0 2px 8px rgba(0,0,0,.14); }
-.hp-sub-card:hover { border-color:var(--primary-color-high, #1769aa); }
-.hp-sub-card-top { display:flex; align-items:flex-start; justify-content:space-between; gap:9px; padding:10px 13px; background:rgba(23,105,170,.16); border-bottom:2px solid var(--border-color-high, #7d8790); }
-.hp-sub-name { min-width:0; font-weight:850; font-size:1.05em; overflow-wrap:anywhere; }
-.hp-sub-host { margin-top:2px; font-size:12px; overflow-wrap:anywhere; opacity:.85; }
-.hp-sub-count { flex:none; padding:3px 9px; border:2px solid var(--border-color-high, #7d8790); border-radius:10px; font-size:12px; font-weight:700; white-space:nowrap; }
-.hp-sub-body { display:flex; flex-direction:column; gap:10px; padding:12px 13px; flex:1 1 auto; }
-.hp-sub-plan { padding:7px 10px; border-left:4px solid var(--primary-color-high, #1769aa); border-radius:5px; background:rgba(128,128,128,.12); font-size:12px; font-weight:650; overflow-wrap:anywhere; }
-.hp-sub-plan.is-off { font-weight:400; opacity:.8; }
-.hp-sub-control-title { margin-bottom:6px; font-size:12px; font-weight:800; }
-.hp-sub-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:auto; padding-top:4px; }
-.hp-sub-btn { min-height:32px; padding:5px 14px; border:2px solid var(--border-color-high, #7d8790); border-radius:7px; background:rgba(128,128,128,.14); color:inherit; cursor:pointer; font-weight:750; }
-.hp-sub-btn-primary { border-color:var(--primary-color-high, #1769aa); background:var(--primary-color-high, #1769aa); color:#fff; }
-.hp-sub-btn:disabled { opacity:.65; cursor:default; }
-.hp-sub-status { min-width:0; font-size:12px; overflow-wrap:anywhere; }
-.hp-sub-status[data-state=success] { color:#2e9c4a; }
-.hp-sub-status[data-state=error] { color:#d64545; font-weight:700; }
-.hp-sub-status[data-state=warning] { color:#c98a00; }
-.hp-sub-status[data-state=running], .hp-sub-status[data-state=queued] { color:var(--primary-color-high, #1769aa); }
-.hp-sub-empty { padding:18px 10px; text-align:center; }
-.hp-hour-grid { display:grid; grid-template-columns:repeat(8, minmax(0, 1fr)); gap:5px; }
-.hp-hour-chip { min-width:0; padding:5px 2px; border:2px solid var(--border-color-high, #7d8790); border-radius:6px; background:rgba(128,128,128,.10); color:inherit; cursor:pointer; font-size:11px; font-weight:700; text-align:center; }
-.hp-hour-chip:hover { border-color:var(--primary-color-high, #1769aa); }
-.hp-hour-chip.on { border-color:var(--primary-color-high, #1769aa); background:var(--primary-color-high, #1769aa); color:#fff; }
-.hp-hour-tools { display:flex; flex-wrap:wrap; gap:6px; margin-top:7px; }
-
-.cbi-value:has(.hp-sub-manager) { display: block !important; grid-template-columns: minmax(0, 1fr) !important; }
-.cbi-value:has(.hp-sub-manager) > .cbi-value-title { display: none !important; }
-.cbi-value:has(.hp-sub-manager) > .cbi-value-field { display: block !important; float: none !important; grid-column: 1 / -1 !important; width: 100% !important; max-width: none !important; margin: 0 !important; padding: 0 !important; }
-.hp-sub-manager { margin: 4px 0 10px; padding: 10px; }
-.hp-sub-grid { gap: 10px; }
-.hp-sub-card-top { padding: 6px 11px; }
-.hp-sub-body { gap: 7px; padding: 8px 11px; }
-.hp-sub-plan { padding: 4px 9px; }
-.hp-sub-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
-.hp-sub-line .hp-sub-control-title { flex: 0 0 auto; margin: 0; min-width: 4.2em; }
-.hp-sub-line .hp-week { flex: 1 1 0; min-width: 0; gap: 5px; }
-.hp-sub-line .hp-chip { min-width: 0; padding: 2px 9px; border-radius: 6px; }
-.hp-sub-line .hp-week .hp-btn { padding: 1px 9px; line-height: 20px; }
-.hp-hour-input { flex: 1 1 0; min-width: 0; box-sizing: border-box; height: 32px; padding: 0 10px; border: 2px solid var(--border-color-high, #7d8790); border-radius: 7px; background: var(--background-color, #fff); color: inherit; font-weight: 700; }
-.hp-hour-input:focus { border-color: var(--primary-color-high, #1769aa); outline: none; }
-.hp-hour-input.is-bad { border-color: #d64545; background: rgba(214,69,69,.10); }
-.hp-sub-actions { padding-top: 0; }
-@media (max-width: 900px) { .hp-sub-grid { grid-template-columns:minmax(0, 1fr); } }
+.hp-week { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; --hp-accent: var(--primary-color-high, #3d9a3d); }
+.hp-chip { box-sizing: border-box; min-width: 58px; text-align: center; padding: 6px 12px; border: 2px solid rgba(128,128,128,.35); border-radius: 8px; cursor: pointer; user-select: none; font-weight: 600; }
+.hp-chip:hover { border-color: var(--hp-accent); }
+.hp-chip.on { border-color: var(--hp-accent); background: var(--hp-accent); color: #fff; }
+.hp-week .hp-btn { cursor: pointer; padding: 3px 12px; line-height: 22px; border-radius: 4px; border: 1px solid rgba(128,128,128,.5); background: rgba(128,128,128,.12); color: inherit; }
+.hp-week .hp-btn:hover { background: rgba(128,128,128,.28); }
 `;
-function injectSubCss() {
-	let style = document.getElementById('hp-week-css');
-	if (!style) { style = E('style', { 'id': 'hp-week-css' }); document.head.appendChild(style); }
-	style.textContent = HP_WEEK_CSS;
-}
 
 const UIWeekPicker = ui.AbstractElement.extend({
 	__init__(value, choices, options) {
 		this.options = options || {};
 		this.choices = choices || {};
 		this.order = this.options.order || Object.keys(this.choices);
-		this.selected = L.toArray(value).map(String).filter((v) => Object.prototype.hasOwnProperty.call(this.choices, v));
+		this.selected = new Set(L.toArray(value).map(String).filter((v) => (v in this.choices)));
 	},
-	getValue() { return this.order.filter((id) => this.selected.indexOf(id) >= 0); },
+
+	getValue() {
+		return this.order.filter((id) => this.selected.has(id));
+	},
+
 	setValue(value) {
-		this.selected = L.toArray(value).map(String).filter((v) => Object.prototype.hasOwnProperty.call(this.choices, v));
+		this.selected = new Set(L.toArray(value).map(String).filter((v) => (v in this.choices)));
 		this.refresh();
 	},
+
 	notify() {
-		if (this.node) {
-			this.node.setAttribute('data-changed', 'true');
-			this.node.dispatchEvent(new CustomEvent('widget-change', { bubbles: true }));
-		}
-		if (typeof this.options.onChange === 'function') this.options.onChange(this.getValue());
+		this.node.setAttribute('data-changed', 'true');
+		this.node.dispatchEvent(new CustomEvent('widget-change', { bubbles: true }));
 	},
+
 	refresh() {
-		if (!this.chips) return;
-		this.chips.forEach((el, id) => el.classList.toggle('on', this.selected.indexOf(id) >= 0));
+		this.chips.forEach((el, id) => el.classList.toggle('on', this.selected.has(id)));
 	},
-	toggle(id) {
-		const i = this.selected.indexOf(id);
-		if (i >= 0) this.selected.splice(i, 1); else this.selected.push(id);
-		this.refresh(); this.notify();
-	},
+
 	render() {
-		injectSubCss();
+		if (!document.getElementById('hp-week-css'))
+			document.head.appendChild(E('style', { 'id': 'hp-week-css' }, HP_WEEK_CSS));
+
 		this.chips = new Map();
 		const frame = E('div', { 'class': 'hp-week', 'id': this.options.id });
 		this.order.forEach((id) => {
-			const chip = E('div', { 'class': 'hp-chip', 'click': () => this.toggle(id) }, this.choices[id]);
+			const chip = E('div', { 'class': 'hp-chip', 'click': () => {
+				if (this.selected.has(id)) this.selected.delete(id); else this.selected.add(id);
+				this.refresh();
+				this.notify();
+			} }, this.choices[id]);
 			this.chips.set(id, chip);
 			frame.appendChild(chip);
 		});
-		frame.appendChild(E('button', { 'type': 'button', 'class': 'hp-btn', 'click': () => { this.selected = this.order.slice(); this.refresh(); this.notify(); } }, '每天'));
-		frame.appendChild(E('button', { 'type': 'button', 'class': 'hp-btn', 'click': () => { this.selected = []; this.refresh(); this.notify(); } }, '清空'));
+		frame.appendChild(E('button', { 'type': 'button', 'class': 'hp-btn', 'click': () => {
+			this.order.forEach((id) => this.selected.add(id)); this.refresh(); this.notify();
+		} }, '每天'));
+		frame.appendChild(E('button', { 'type': 'button', 'class': 'hp-btn', 'click': () => {
+			this.selected.clear(); this.refresh(); this.notify();
+		} }, '清空'));
+
 		this.node = frame;
 		dom.bindClassInstance(frame, this);
 		this.refresh();
@@ -180,166 +136,70 @@ const UIWeekPicker = ui.AbstractElement.extend({
 	}
 });
 
-const callSubUpdateStart = rpc.declare({ object: 'luci.homeproxy', method: 'resources_update_start', params: ['type'], expect: { '': {} } });
-const callSubUpdateStatus = rpc.declare({ object: 'luci.homeproxy', method: 'resources_update_status', params: ['type'], expect: { '': {} } });
-
-/* 先保存并应用当前设置，再把更新任务交给路由器后台；页面只轮询状态 */
-function hpApplyPending() {
-	return L.resolveDefault(uci.changes(), {}).then((ch) => (ch && Object.keys(ch).length) ? ui.changes.apply(true) : null);
+function useWeekPicker(opt) {
+	opt.renderWidget = function(section_id, option_index, cfgvalue) {
+		const widget = new UIWeekPicker(L.toArray((cfgvalue != null) ? cfgvalue : this.default), this.transformChoices(), {
+			id: this.cbid(section_id),
+			order: ['1', '2', '3', '4', '5', '6', '0']
+		});
+		return widget.render();
+	};
 }
 
-function runSubUpdate(type, btn, map, statusEl) {
-	const originalText = btn ? btn.textContent : '';
-	const setStatus = (state, message) => { if (statusEl) { statusEl.dataset.state = state; statusEl.textContent = message; } };
-	const release = () => { if (btn) { btn.disabled = false; btn.textContent = originalText; } };
-	if (btn) { btn.disabled = true; btn.textContent = '提交中…'; }
-	setStatus('queued', '正在保存设置并提交任务…');
-	return Promise.resolve(map ? map.save(null, true) : null).then(() => hpApplyPending())
-	.then(() => callSubUpdateStart(type)).then((res) => {
+const callSubUpdateStart = rpc.declare({
+	object: 'luci.homeproxy',
+	method: 'resources_update_start',
+	params: ['type'],
+	expect: { '': {} }
+});
+
+const callSubUpdateStatus = rpc.declare({
+	object: 'luci.homeproxy',
+	method: 'resources_update_status',
+	params: ['type'],
+	expect: { '': {} }
+});
+
+/* 订阅更新放到路由器后台执行，网页只做短请求轮询：可以随便切换标签页，不会再卡在「正在刷新」 */
+function runSubUpdate(type, btn) {
+	if (btn) btn.disabled = true;
+	const release = () => { if (btn) btn.disabled = false; };
+
+	return callSubUpdateStart(type).then((res) => {
 		if (!res?.result) {
-			const msg = res?.error || '后台服务没有响应，请确认已安装包含后台更新接口的新版 luci-app-homeproxy';
-			setStatus('error', '启动失败：' + msg);
-			ui.addNotification(null, E('p', '无法启动后台更新：%s'.format(msg)));
+			ui.addNotification(null, E('p', '无法启动后台更新：%s'.format(res?.error || '未知错误')));
 			release();
 			return;
 		}
-		setStatus('queued', '已进入后台队列');
-		let tries = 0, done = false;
+
+		ui.addNotification(null, E('p', '已在后台开始更新订阅，可以离开本页；完成后本页会自动刷新。'));
+
+		let tries = 0;
 		const tick = () => {
-			if (done) return;
 			tries++;
 			callSubUpdateStatus(type).then((st) => {
 				if (st?.state === 'success') {
-					done = true;
-					setStatus('success', '更新完成，正在刷新节点列表…');
-					setTimeout(() => location.reload(), 1200);
+					location.reload();
 				} else if (st?.state === 'error') {
-					done = true;
-					const msg = st?.message || '详情见 HomeProxy 日志';
-					setStatus('error', '更新失败：' + msg);
-					ui.addNotification(null, E('p', '订阅更新失败：%s'.format(msg)));
+					ui.addNotification(null, E('p', '订阅更新失败：%s（详情见服务状态里的日志）'.format(st?.message || '')));
 					release();
-				} else if (tries < 600) {
-					setStatus('running', '后台更新中…（多个订阅会自动排队）');
+				} else if (tries < 200) {
 					setTimeout(tick, 3000);
 				} else {
-					done = true;
-					setStatus('warning', '状态查询超时；任务可能仍在后台执行，稍后刷新页面确认。');
 					release();
 				}
 			}).catch(() => {
-				if (tries < 600) setTimeout(tick, 5000); else { done = true; release(); }
+				if (tries < 200) setTimeout(tick, 5000);
+				else release();
 			});
 		};
 		setTimeout(tick, 3000);
 	}).catch((err) => {
-		setStatus('error', '启动失败：' + err);
 		ui.addNotification(null, E('p', _('An error occurred during updating subscriptions: %s').format(err)));
 		release();
 	});
 }
 
-function renderSubscriptionDashboard(subinfo, data, map) {
-	injectSubCss();
-	const root = E('div', { 'class': 'hp-sub-manager' });
-	const autoUpdate = uci.get(data[0], 'subscription', 'auto_update') === '1';
-	const globalStatus = E('span', { 'class': 'hp-sub-status', 'aria-live': 'polite' }, '就绪');
-	const allButton = E('button', { 'type': 'button', 'class': 'hp-sub-btn hp-sub-btn-primary', 'disabled': !subinfo.length,
-		'click': () => runSubUpdate('sub_all', allButton, map, globalStatus) }, '更新全部订阅');
-	const saveButton = E('button', { 'type': 'button', 'class': 'hp-sub-btn',
-		'click': () => {
-			saveButton.disabled = true; saveButton.textContent = '保存中…';
-			return map.save(null, true).then(() => hpApplyPending()).then(() => {
-				globalStatus.dataset.state = 'success'; globalStatus.textContent = '订阅和定时设置已保存';
-			}).catch((err) => {
-				globalStatus.dataset.state = 'error'; globalStatus.textContent = '保存失败：' + err;
-			}).finally(() => { saveButton.disabled = false; saveButton.textContent = '保存订阅与定时'; });
-		} }, '保存订阅与定时');
-	root.appendChild(E('div', { 'class': 'hp-sub-head' }, [
-		E('div', {}, [
-			E('div', { 'class': 'hp-sub-heading' }, '订阅与定时管理'),
-			E('div', { 'class': 'hp-sub-hint' }, autoUpdate ?
-				'自动更新总开关：已开启。只有设置了「更新时间」的订阅才会按时更新，没设置时间的不会自动更新。' :
-				'自动更新总开关：当前关闭。可先设置并保存各订阅的时间表，开启总开关后才会生效。')
-		]),
-		E('div', { 'class': 'hp-sub-actions' }, [ globalStatus, saveButton, allButton ])
-	]));
-	if (!subinfo.length) {
-		root.appendChild(E('div', { 'class': 'hp-sub-empty' }, '尚未添加订阅。请先在上方订阅地址中添加并保存。'));
-		return root;
-	}
-	const weekNames = { '1': '周一', '2': '周二', '3': '周三', '4': '周四', '5': '周五', '6': '周六', '0': '周日' };
-	const grid = E('div', { 'class': 'hp-sub-grid' });
-	for (const info of subinfo) {
-		let count = 0;
-		uci.sections(data[0], 'node', (n) => { if (n.grouphash === info.hash) count++; });
-		const rawWeek = uci.get(data[0], 'subscription', 'sub_week_' + info.hash) || [];
-		let selectedWeek = (Array.isArray(rawWeek) ? rawWeek : [rawWeek]).map(String).filter((v) => v in weekNames);
-		const rawHours = uci.get(data[0], 'subscription', 'sub_hours_' + info.hash) || '';
-		let selectedHours = String(rawHours).split(/[ ,]+/).filter(Boolean).map(Number).filter((h) => Number.isInteger(h) && h >= 0 && h <= 23);
-		const plan = E('div', { 'class': 'hp-sub-plan' });
-		const refreshPlan = () => {
-			plan.textContent = !selectedHours.length ? '当前未设置自动更新时间（手动更新仍可用）' :
-				'时间表：' + (selectedWeek.length ? selectedWeek.map((v) => weekNames[v]).join('、') : '每天') + ' · ' +
-				selectedHours.slice().sort((a, b) => a - b).map((h) => String(h).padStart(2, '0') + ':00').join('、');
-			plan.classList.toggle('is-off', !selectedHours.length);
-		};
-		refreshPlan();
-		const markDirty = () => { globalStatus.dataset.state = 'warning'; globalStatus.textContent = '定时设置已修改，请点「保存订阅与定时」'; };
-		const weekWidget = new UIWeekPicker(selectedWeek, weekNames, {
-			id: 'hp-week-' + info.hash, order: ['1', '2', '3', '4', '5', '6', '0'],
-			onChange: (value) => {
-				selectedWeek = value;
-				uci.set(data[0], 'subscription', 'sub_week_' + info.hash, value.length ? value : null);
-				refreshPlan(); markDirty();
-			}
-		});
-		/* 更新时间：手写整点，例如 3 或 3,15；留空 = 此订阅不自动更新 */
-		const hourInput = E('input', { 'type': 'text', 'class': 'hp-hour-input', 'id': 'hp-hours-' + info.hash, 'autocomplete': 'off',
-			'placeholder': '手写整点：3 或 3,15（0-23，逗号隔开）；留空 = 不自动更新', 'value': String(rawHours || '') });
-		const applyHours = (commit) => {
-			const tokens = hourInput.value.split(/[,，、\s]+/).filter(Boolean);
-			const nums = tokens.map((t) => (/^\d{1,2}$/.test(t) ? parseInt(t, 10) : -1));
-			const bad = nums.some((h) => h < 0 || h > 23);
-			hourInput.classList.toggle('is-bad', bad);
-			if (bad) {
-				globalStatus.dataset.state = 'error'; globalStatus.textContent = '更新时间只能写 0-23 的整点，多个用逗号隔开，例如 3,15';
-				return;
-			}
-			const list = Array.from(new Set(nums)).sort((x, y) => x - y);
-			selectedHours = list;
-			if (commit) {
-				const value = list.join(',');
-				hourInput.value = value;
-				uci.set(data[0], 'subscription', 'sub_hours_' + info.hash, value || null);
-				markDirty();
-			}
-			refreshPlan();
-		};
-		hourInput.addEventListener('input', () => applyHours(false));
-		hourInput.addEventListener('change', () => applyHours(true));
-		const status = E('span', { 'class': 'hp-sub-status', 'aria-live': 'polite' }, '就绪');
-		const button = E('button', { 'type': 'button', 'class': 'hp-sub-btn hp-sub-btn-primary',
-			'click': () => runSubUpdate('sub_' + info.hash, button, map, status) }, '仅更新此订阅');
-		grid.appendChild(E('div', { 'class': 'hp-sub-card' }, [
-			E('div', { 'class': 'hp-sub-card-top' }, [
-				E('div', { 'style': 'min-width:0' }, [
-					E('div', { 'class': 'hp-sub-name' }, info.title),
-					E('div', { 'class': 'hp-sub-host' }, info.host || info.title)
-				]),
-				E('span', { 'class': 'hp-sub-count' }, count + ' 个节点')
-			]),
-			E('div', { 'class': 'hp-sub-body' }, [
-				plan,
-				E('div', { 'class': 'hp-sub-line' }, [ E('span', { 'class': 'hp-sub-control-title' }, '更新星期'), weekWidget.render() ]),
-				E('div', { 'class': 'hp-sub-line' }, [ E('span', { 'class': 'hp-sub-control-title' }, '更新时间'), hourInput ]),
-				E('div', { 'class': 'hp-sub-actions' }, [ button, status ])
-			])
-		]));
-	}
-	root.appendChild(grid);
-	return root;
-}
 
 const NODE_SHOW_MAX = 60;
 const NODE_SHOW_ALL_KEY = 'homeproxy_node_show_all';
@@ -2414,10 +2274,6 @@ return view.extend({
 		}
 
 
-		o = s.taboption('subscription', form.DummyValue, '_subscription_dashboard', '订阅管理');
-		o.cfgvalue = function() { return ''; };
-		o.renderWidget = function() { return renderSubscriptionDashboard(subinfo, data, m); };
-
 		o = s.taboption('subscription', form.ListValue, 'filter_nodes', _('Filter nodes'),
 			_('Drop/keep specific nodes from subscriptions.'));
 		o.value('disabled', _('Disable'));
@@ -2474,6 +2330,54 @@ return view.extend({
 			}
 		}
 		o.onclick = function(ev) { return runSubUpdate('sub_all',ev?.currentTarget||ev?.target,this.map,null); }
+
+		/* 每个订阅一个独立更新按钮：只更新被点的那个订阅，其它订阅的节点保持不动 */
+		for (const info of subinfo) {
+			o = s.taboption('subscription', form.Button, '_update_sub_' + info.hash, '更新订阅：' + info.title);
+			o.inputstyle = 'apply';
+			o.inputtitle = function() {
+				let cnt = 0;
+				uci.sections(data[0], 'node', (res) => {
+					if (res.grouphash === info.hash)
+						cnt++;
+				});
+				return '只更新此订阅（当前 %d 个节点）'.format(cnt);
+			};
+			o.onclick = function(ev) {
+				return runSubUpdate('sub_' + info.hash, ev?.target);
+			};
+
+			/* 每个订阅单独的自动更新时间：填了「几点」就按自己的时间更新，不填就跟随上面的统一设置 */
+			o = s.taboption('subscription', form.MultiValue, 'sub_week_' + info.hash, '「' + info.title + '」更新星期',
+				'点选哪几天更新；一个都不选 = 每天。只有下面填了「几点」才会自动更新。');
+			o.value('1', '周一');
+			o.value('2', '周二');
+			o.value('3', '周三');
+			o.value('4', '周四');
+			o.value('5', '周五');
+			o.value('6', '周六');
+			o.value('0', '周日');
+			o.rmempty = true;
+			useWeekPicker(o);
+			o.depends('auto_update', '1');
+
+			o = s.taboption('subscription', form.Value, 'sub_hours_' + info.hash, '「' + info.title + '」更新时间（几点）',
+				'填 0-23 的整点，多个用英文逗号隔开，例如 3 或 3,15；留空 = 这个订阅不自动更新。');
+			o.placeholder = '留空 = 不自动更新';
+			o.rmempty = true;
+			o.validate = function(section_id, value) {
+				if (!value)
+					return true;
+				if (!/^\d{1,2}([ ,]+\d{1,2})*$/.test(value.trim()))
+					return '请填 0-23 的整点，多个用英文逗号隔开';
+				for (let h of value.trim().split(/[ ,]+/))
+					if (parseInt(h) > 23)
+						return '小时必须在 0-23 之间';
+				return true;
+			};
+			o.depends('auto_update', '1');
+		}
+
 
 		o = s.taboption('subscription', form.Button, '_remove_subscriptions', _('Remove all nodes from subscriptions'));
 		o.inputstyle = 'reset';
