@@ -859,6 +859,22 @@ function renderNodeSettings(section, data, features, main_node, routing_mode) {
 	o.depends({'type': 'direct', '!reverse': true});
 	o.rmempty = false;
 
+	/* 链式代理：本节点的连接先经过「前置节点」再到本服务器（sing-box detour） */
+	o = s.option(form.ListValue, 'chain_node', '前置节点（链式代理）',
+		'留空 = 直接连接本节点。选一个节点后，流量路径是：路由器 → 前置节点 → 本节点（落地）→ 目标网站，出口 IP 是本节点（落地）的。例如前置选 Worker 优选节点，本节点选带 IPv4 的 anytls / vless 服务器。前置节点本身不要再选回本节点。');
+	o.value('', '无（直连）');
+	uci.sections(data[0], 'node', (n) => {
+		o.value(n['.name'], '[%s] %s'.format(n.type || '', n.label || n.address || n['.name']));
+	});
+	o.default = '';
+	o.rmempty = true;
+	o.modalonly = true;
+	o.validate = function(section_id, value) {
+		if (value && value === section_id)
+			return '前置节点不能选本节点自己';
+		return true;
+	};
+
 	o = s.option(form.Value, 'username', _('Username'));
 	o.depends('type', 'http');
 	o.depends('type', 'socks');
