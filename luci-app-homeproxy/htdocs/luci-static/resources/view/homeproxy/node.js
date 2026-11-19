@@ -191,7 +191,7 @@ function hpToast(title, detail, kind) {
 
 /* 从更新日志里挑出和结果有关的行 */
 function hpUpdateSummary(text) {
-	const keep = String(text || '').split('\n').filter((l) =>
+	const keep = String(text || '').split('\n').filter((l) => !/ubus call service delete/.test(l)).filter((l) =>
 		/Successfully fetched|No valid node|Failed|failed|Unsupported|Invalid|Skipping|nodes added|WARNING|FAILED|Adding node|Removing node/.test(l));
 	return keep.slice(-14).join('\n');
 }
