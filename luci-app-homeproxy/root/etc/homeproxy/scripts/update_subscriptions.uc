@@ -85,7 +85,7 @@ let service_was_stopped = false;
 /*
  * HPDEDUP: 关联去重。判断「是不是同一个节点」只看服务器端点本身
  * （协议 + 地址 + 端口 + 账号/密码 + 传输方式 + 主机名/路径 + SNI），不看名字。
- *  - 和手动添加的节点重复 → 跳过（手动节点优先）
+ *  - 和手动添加的节点重复 → 订阅优先，照常加入并提示（手动节点不会被删除）
  *  - 同一次更新里，前面的订阅已经有了 → 后面的订阅跳过
  *  - 只更新单个订阅时，和其它订阅里已有的节点重复 → 跳过
  */
@@ -777,11 +777,9 @@ function main() {
 
 			/* HPDEDUP */
 			const coreKey = core_key(config);
-			if (manual_core[coreKey]) {
-				log(sprintf('跳过重复节点（与手动添加的节点相同）：%s。', config.label));
-				dup_count++;
-				continue;
-			}
+			/* 订阅优先：与手动节点相同也照常加入订阅组，保证地址/参数随订阅保持最新 */
+			if (manual_core[coreKey])
+				log(sprintf('节点 %s 与手动添加的节点相同，按订阅为准保留（可自行删除手动那份）。', config.label));
 			if (run_core[coreKey] && run_core[coreKey] !== groupHash) {
 				log(sprintf('跳过重复节点（已存在于其他订阅）：%s。', config.label));
 				dup_count++;
