@@ -82,6 +82,43 @@ const node_cache = {},
       node_result = [];
 let service_was_stopped = false;
 
+/*
+ * HPDEDUP: 关联去重。判断「是不是同一个节点」只看服务器端点本身
+ * （协议 + 地址 + 端口 + 账号/密码 + 传输方式 + 主机名/路径 + SNI），不看名字。
+ *  - 和手动添加的节点重复 → 跳过（手动节点优先）
+ *  - 同一次更新里，前面的订阅已经有了 → 后面的订阅跳过
+ *  - 只更新单个订阅时，和其它订阅里已有的节点重复 → 跳过
+ */
+function core_pick(c, names) {
+	for (let n in names) {
+		let v = c[n];
+
+		if (type(v) === 'array')
+			v = join(',', v);
+
+		if (!isEmpty(v))
+			return '' + v;
+	}
+
+	return '';
+}
+
+function core_key(c) {
+	return lc(join('|', [
+		core_pick(c, ['type']),
+		core_pick(c, ['address']),
+		core_pick(c, ['port']),
+		core_pick(c, ['uuid', 'password', 'username']),
+		core_pick(c, ['transport']),
+		core_pick(c, ['ws_host', 'http_host', 'httpupgrade_host', 'xhttp_host']),
+		core_pick(c, ['ws_path', 'http_path', 'xhttp_path', 'grpc_servicename']),
+		core_pick(c, ['tls_sni']),
+		core_pick(c, ['shadowsocks_encrypt_method'])
+	]));
+}
+
+const manual_core = {}, other_core = {}, run_core = {};
+
 const ubus = connect();
 const sing_features = ubus.call('luci.homeproxy', 'singbox_get_features', {}) || {};
 /* Common var end */
@@ -628,6 +665,13 @@ function main() {
 		service_was_stopped = true;
 	}
 
+	uci.foreach(uciconfig, ucinode, (cfg) => {
+		if (!cfg.grouphash)
+			manual_core[core_key(cfg)] = true;
+		else
+			other_core[core_key(cfg)] = cfg.grouphash;
+	});
+
 	for (let sub_index = 0; sub_index < length(update_subscription_urls); sub_index++) {
 		let url = replace(update_subscription_urls[sub_index], /#.*$/, '');
 		const groupHash = md5(url);
@@ -726,6 +770,22 @@ function main() {
 				if (isEmpty(config.tls_max_version)) config.tls_max_version = '1.3';
 			}
 
+			/* HPDEDUP */
+			const coreKey = core_key(config);
+			if (manual_core[coreKey]) {
+				log(sprintf('Skipping duplicate node (same as a manually added node): %s.', config.label));
+				continue;
+			}
+			if (run_core[coreKey] && run_core[coreKey] !== groupHash) {
+				log(sprintf('Skipping duplicate node (already in another subscription): %s.', config.label));
+				continue;
+			}
+			if (has_group_filter && other_core[coreKey] && other_core[coreKey] !== groupHash &&
+			    !requested_group_hashes[other_core[coreKey]]) {
+				log(sprintf('Skipping duplicate node (already in another subscription): %s.', config.label));
+				continue;
+			}
+
 			const label = config.label;
 			config.label = null;
 			const confHash = md5(sprintf('%J', config)),
@@ -747,6 +807,7 @@ function main() {
 				push(node_result[length(node_result)-1], config);
 				node_cache[groupHash][confHash] = config;
 				node_cache[groupHash][nameHash] = config;
+				run_core[coreKey] = groupHash;
 
 				count++;
 			}
