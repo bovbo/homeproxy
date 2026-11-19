@@ -918,6 +918,22 @@ function renderNodeSettings(section, data, features, main_node, routing_mode) {
 		return true;
 	};
 
+	/* 后置落地：选用本节点时，流量再经「落地节点」出去，出口 IP 是落地节点的 */
+	o = s.option(form.ListValue, 'chain_next', '后置落地（链式代理）',
+		'留空 = 本节点自己就是出口。选一个节点后，选用本节点时的路径是：路由器 → 本节点（若设了前置则先经前置）→ 落地节点 → 目标网站，出口 IP 是落地节点的。落地节点本身的前置/后置设置在这里不生效。落地不要选本节点自己。');
+	o.value('', '无（本节点即出口）');
+	uci.sections(data[0], 'node', (n) => {
+		o.value(n['.name'], '[%s] %s'.format(n.type || '', n.label || n.address || n['.name']));
+	});
+	o.default = '';
+	o.rmempty = true;
+	o.modalonly = true;
+	o.validate = function(section_id, value) {
+		if (value && value === section_id)
+			return '落地节点不能选本节点自己';
+		return true;
+	};
+
 	o = s.option(form.Value, 'username', _('Username'));
 	o.depends('type', 'http');
 	o.depends('type', 'socks');

@@ -396,7 +396,47 @@ function chain_detour(node) {
 	return node_out_tag(id);
 }
 
+/*
+ * HPCHAIN: 后置落地。node.chain_next = 落地节点 id：选用本节点时，路径是
+ * 路由器 → 本节点（含它自己的前置）→ 落地节点 → 目标网站，出口是落地节点。
+ * 落地不存在 / 选了自己 / 是 WireGuard 时忽略。
+ */
+function chain_next_cfg(node) {
+	const id = trim('' + (node.chain_next ?? ''));
+
+	if (isEmpty(id) || id === node['.name'])
+		return null;
+
+	const cfg = uci.get_all(uciconfig, id);
+
+	if (type(cfg) !== 'object' || isEmpty(cfg.type) || cfg.type === 'wireguard')
+		return null;
+
+	return cfg;
+}
+
 function generate_outbound(node) {
+	if (type(node) !== 'object' || isEmpty(node))
+		return null;
+
+	const landing = chain_next_cfg(node);
+
+	if (!landing)
+		return generate_outbound_raw(node);
+
+	/* 跳板：本节点自己，tag 加 -hop；真正对外的 tag 给落地节点配置，并 detour 到跳板 */
+	const hop_tag = node_out_tag(node['.name']) + '-hop';
+
+	if (!outbound_tag_defined(hop_tag)) {
+		if (!config.outbounds)
+			config.outbounds = [];
+		push(config.outbounds, generate_outbound_raw(node, { tag: hop_tag }));
+	}
+
+	return generate_outbound_raw(landing, { tag: node_out_tag(node['.name']), detour: hop_tag, landing: true });
+}
+
+function generate_outbound_raw(node, ov) {
 	if (type(node) !== 'object' || isEmpty(node))
 		return null;
 
@@ -404,9 +444,9 @@ function generate_outbound(node) {
 
 	const outbound = {
 		type: node.type,
-		tag: node_out_tag(node['.name']),
+		tag: ov?.tag ?? node_out_tag(node['.name']),
 		routing_mark: strToInt(self_mark),
-		detour: chain_detour(node),
+		detour: ov?.landing ? ov.detour : chain_detour(node),
 
 		server: node.address,
 		server_port: strToInt(node.port),
