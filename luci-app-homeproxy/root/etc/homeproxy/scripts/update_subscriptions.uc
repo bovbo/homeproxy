@@ -179,13 +179,13 @@ function decode_ss_base64(str) {
 function parse_vmess_json(vmess) {
 	if (type(vmess) !== 'object' || vmess.v != '2') return null;
 	if (vmess.net === 'kcp') {
-		log(sprintf('Skipping unsupported VMess node: %s.', vmess.ps || vmess.add));
+		log(sprintf('跳过不支持的 VMess 节点：%s。', vmess.ps || vmess.add));
 		return null;
 	}
 	if (vmess.net === 'quic' &&
 	    ((vmess.type && vmess.type !== 'none') || vmess.path || !sing_features.with_quic)) {
-		log(sprintf('Skipping unsupported VMess node: %s.', vmess.ps || vmess.add));
-		if (!sing_features.with_quic) log('Please rebuild sing-box with QUIC support!');
+		log(sprintf('跳过不支持的 VMess 节点：%s。', vmess.ps || vmess.add));
+		if (!sing_features.with_quic) log('请使用带 QUIC 支持的 sing-box 重新编译！');
 		return null;
 	}
 	const config = {
@@ -294,9 +294,9 @@ function parse_uri(uri) {
 			params = url.searchParams || {};
 
 			if (!sing_features.with_quic || (params.protocol && params.protocol !== 'udp')) {
-				log(sprintf('Skipping unsupported %s node: %s.', uri[0], urldecode(url.hash) || url.hostname));
+				log(sprintf('跳过不支持的 %s 节点：%s。', uri[0], urldecode(url.hash) || url.hostname));
 				if (!sing_features.with_quic)
-					log(sprintf('Please rebuild sing-box with %s support!', 'QUIC'));
+					log(sprintf('请使用带 %s 支持的 sing-box 重新编译！', 'QUIC'));
 
 				return null;
 			}
@@ -326,8 +326,8 @@ function parse_uri(uri) {
 			params = url.searchParams || {};
 
 			if (!sing_features.with_quic) {
-				log(sprintf('Skipping unsupported %s node: %s.', uri[0], urldecode(url.hash) || url.hostname));
-				log(sprintf('Please rebuild sing-box with %s support!', 'QUIC'));
+				log(sprintf('跳过不支持的 %s 节点：%s。', uri[0], urldecode(url.hash) || url.hostname));
+				log(sprintf('请使用带 %s 支持的 sing-box 重新编译！', 'QUIC'));
 				return null;
 			}
 
@@ -379,24 +379,28 @@ function parse_uri(uri) {
 				const ss_legacy = decode_ss_base64(ss_payload);
 				if (ss_legacy && match(ss_legacy, /@/)) ss_payload = ss_legacy;
 			}
-			/* Encode literal Base64 padding so parseURL accepts the userinfo. */
-			const ss_at_index = index(ss_payload, '@');
+			/* Split userinfo manually: Base64 userinfo may contain '/' or '+', which parseURL mangles. */
+			let ss_raw_user = '';
+			const ss_at_index = rindex(ss_payload, '@');
 			if (ss_at_index >= 0) {
-				const raw_userinfo = substr(ss_payload, 0, ss_at_index);
-				ss_payload = replace(raw_userinfo, /=/g, '%3D') + substr(ss_payload, ss_at_index);
+				ss_raw_user = substr(ss_payload, 0, ss_at_index);
+				ss_payload = substr(ss_payload, ss_at_index + 1);
 			}
 			url = parseURL('http://' + ss_payload + ss_fragment) || {};
 			let ss_userinfo = [];
-			if (url.username && url.password)
-				ss_userinfo = [urldecode(url.username), urldecode(url.password)];
-			else if (url.username) {
-				const decoded_userinfo = decode_ss_base64(urldecode(url.username));
-				const separator = decoded_userinfo ? index(decoded_userinfo, ':') : -1;
+			if (ss_raw_user) {
+				const decoded_userinfo = decode_ss_base64(ss_raw_user);
+				let plain_userinfo = null;
+				if (decoded_userinfo && index(decoded_userinfo, ':') >= 0)
+					plain_userinfo = decoded_userinfo;
+				else
+					plain_userinfo = urldecode(ss_raw_user);
+				const separator = plain_userinfo ? index(plain_userinfo, ':') : -1;
 				if (separator >= 0)
-					ss_userinfo = [substr(decoded_userinfo, 0, separator), substr(decoded_userinfo, separator + 1)];
+					ss_userinfo = [substr(plain_userinfo, 0, separator), substr(plain_userinfo, separator + 1)];
 			}
 			if (!ss_userinfo[0]) {
-				log('Skipping invalid Shadowsocks URI: missing cipher method.');
+				log('跳过无效的 Shadowsocks 链接：无法解析出加密方式。');
 				return null;
 			}
 			let ss_plugin, ss_plugin_opts;
@@ -451,8 +455,8 @@ function parse_uri(uri) {
 			params = url.searchParams || {};
 
 			if (!sing_features.with_quic) {
-				log(sprintf('Skipping unsupported %s node: %s.', uri[0], urldecode(url.hash) || url.hostname));
-				log(sprintf('Please rebuild sing-box with %s support!', 'QUIC'));
+				log(sprintf('跳过不支持的 %s 节点：%s。', uri[0], urldecode(url.hash) || url.hostname));
+				log(sprintf('请使用带 %s 支持的 sing-box 重新编译！', 'QUIC'));
 
 				return null;
 			}
@@ -479,12 +483,12 @@ function parse_uri(uri) {
 
 			/* Unsupported protocol */
 			if (params.type === 'kcp') {
-				log(sprintf('Skipping sunsupported %s node: %s.', uri[0], urldecode(url.hash) || url.hostname));
+				log(sprintf('跳过不支持的 %s 节点：%s。', uri[0], urldecode(url.hash) || url.hostname));
 				return null;
 			} else if (params.type === 'quic' && ((params.quicSecurity && params.quicSecurity !== 'none') || !sing_features.with_quic)) {
-				log(sprintf('Skipping sunsupported %s node: %s.', uri[0], urldecode(url.hash) || url.hostname));
+				log(sprintf('跳过不支持的 %s 节点：%s。', uri[0], urldecode(url.hash) || url.hostname));
 				if (!sing_features.with_quic)
-					log(sprintf('Please rebuild sing-box with %s support!', 'QUIC'));
+					log(sprintf('请使用带 %s 支持的 sing-box 重新编译！', 'QUIC'));
 
 				return null;
 			}
@@ -633,7 +637,7 @@ function parse_uri(uri) {
 			}
 			config = parse_vmess_json(vmess_data);
 			if (!config) {
-				log('Skipping unsupported VMess JSON/URI format.');
+				log('跳过不支持的 VMess JSON/URI 格式。');
 				return null;
 			}
 			if (!config.label && length(vmess_parts) > 1)
@@ -647,7 +651,7 @@ function parse_uri(uri) {
 			config.address = replace(config.address, /\[|\]/g, '');
 
 		if (!validation('host', config.address) || !validation('port', config.port)) {
-			log(sprintf('Skipping invalid %s node: %s.', config.type, config.label || 'NULL'));
+			log(sprintf('跳过无效的 %s 节点：%s。', config.type, config.label || '无名称'));
 			return null;
 		} else if (!config.label)
 			config.label = (validation('ip6addr', config.address) ?
@@ -661,7 +665,7 @@ function main() {
 	let failed_subscriptions = 0;
 
 	if (via_proxy !== '1') {
-		log('Stopping service...');
+		log('正在停止服务…');
 		service_action('stop');
 		service_was_stopped = true;
 	}
@@ -678,13 +682,13 @@ function main() {
 		const groupHash = md5(url);
 		node_cache[groupHash] = {};
 
-		progress(sprintf('Fetching subscription %d/%d...', sub_index + 1, length(update_subscription_urls)));
+		progress(sprintf('正在拉取订阅 %d/%d …', sub_index + 1, length(update_subscription_urls)));
 
 		const fetchResult = wGETResult(url, user_agent);
 		if (isEmpty(fetchResult.content)) {
 			failed_subscriptions++;
-			log(sprintf('Failed to fetch resources from %s: %s.', url, fetchResult.error || 'unknown error'));
-			progress(sprintf('Fetch failed for subscription %d: %s', sub_index + 1, fetchResult.error || 'unknown error'));
+			log(sprintf('拉取订阅失败 %s：%s。', url, fetchResult.error || '未知错误'));
+			progress(sprintf('失败：订阅 %d 拉取失败：%s', sub_index + 1, fetchResult.error || '未知错误'));
 			continue;
 		}
 
@@ -721,8 +725,8 @@ function main() {
 				nodes = [ parsed ];
 			else {
 				failed_subscriptions++;
-				log(sprintf('Unsupported JSON subscription structure from %s.', url));
-				progress(sprintf('Unsupported JSON subscription format at subscription %d.', sub_index + 1));
+				log(sprintf('不支持的 JSON 订阅结构：%s。', url));
+				progress(sprintf('失败：订阅 %d 的 JSON 格式不支持。', sub_index + 1));
 				continue;
 			}
 		}
@@ -739,8 +743,8 @@ function main() {
 
 			if (match(body, /^[[:space:]]*(proxies|proxy-providers)[[:space:]]*:/)) {
 				failed_subscriptions++;
-				log(sprintf('Unsupported Clash/Mihomo YAML subscription from %s; use a URI list or SIP008 JSON feed.', url));
-				progress(sprintf('Unsupported YAML subscription format at subscription %d.', sub_index + 1));
+				log(sprintf('不支持 Clash/Mihomo YAML 订阅：%s，请改用链接列表或 SIP008 JSON 订阅。', url));
+				progress(sprintf('失败：订阅 %d 为不支持的 YAML 格式。', sub_index + 1));
 				continue;
 			}
 
@@ -749,8 +753,8 @@ function main() {
 
 		if (type(nodes) !== 'array') {
 			failed_subscriptions++;
-			log(sprintf('Invalid subscription payload from %s.', url));
-			progress(sprintf('Invalid subscription payload at subscription %d.', sub_index + 1));
+			log(sprintf('无效的订阅内容：%s。', url));
+			progress(sprintf('失败：订阅 %d 内容无效。', sub_index + 1));
 			continue;
 		}
 
@@ -774,18 +778,18 @@ function main() {
 			/* HPDEDUP */
 			const coreKey = core_key(config);
 			if (manual_core[coreKey]) {
-				log(sprintf('Skipping duplicate node (same as a manually added node): %s.', config.label));
+				log(sprintf('跳过重复节点（与手动添加的节点相同）：%s。', config.label));
 				dup_count++;
 				continue;
 			}
 			if (run_core[coreKey] && run_core[coreKey] !== groupHash) {
-				log(sprintf('Skipping duplicate node (already in another subscription): %s.', config.label));
+				log(sprintf('跳过重复节点（已存在于其他订阅）：%s。', config.label));
 				dup_count++;
 				continue;
 			}
 			if (has_group_filter && other_core[coreKey] && other_core[coreKey] !== groupHash &&
 			    !requested_group_hashes[other_core[coreKey]]) {
-				log(sprintf('Skipping duplicate node (already in another subscription): %s.', config.label));
+				log(sprintf('跳过重复节点（已存在于其他订阅）：%s。', config.label));
 				dup_count++;
 				continue;
 			}
@@ -797,9 +801,9 @@ function main() {
 			config.label = label;
 
 			if (filter_check(config.label))
-				log(sprintf('Skipping blacklist node: %s.', config.label));
+				log(sprintf('跳过黑名单节点：%s。', config.label));
 			else if (node_cache[groupHash][confHash] || node_cache[groupHash][nameHash])
-				log(sprintf('Skipping duplicate node: %s.', config.label));
+				log(sprintf('跳过重复节点：%s。', config.label));
 			else {
 				if (config.tls === '1' && allow_insecure === '1')
 					config.tls_insecure = '1';
@@ -819,40 +823,40 @@ function main() {
 
 		if (count == 0 && dup_count > 0) {
 			/* every node of this subscription already exists elsewhere: not a failure */
-			log(sprintf('All %s nodes of %s already exist (duplicates), nothing to add.', dup_count, url));
-			progress(sprintf('Subscription %d: all %s nodes already exist, nothing to add.', sub_index + 1, dup_count));
+			log(sprintf('%s 的 %s 个节点均已存在（重复），无需新增。', url, dup_count));
+			progress(sprintf('提示：订阅 %d 的 %s 个节点均已存在，无需新增。', sub_index + 1, dup_count));
 			node_cache[groupHash]['__all_duplicate__'] = true;
 			dup_only_groups++;
 		}
 		else if (count == 0) {
 			failed_subscriptions++;
-			log(sprintf('No valid node found in %s.', url));
-			progress(sprintf('No valid nodes in subscription %d; its existing nodes will be kept.', sub_index + 1));
+			log(sprintf('未在 %s 中找到有效节点。', url));
+			progress(sprintf('警告：订阅 %d 没有有效节点，保留其原有节点。', sub_index + 1));
 		}
 		else {
-			log(sprintf('Successfully fetched %s nodes of total %s from %s.', count, length(nodes), url));
-			progress(sprintf('Subscription %d: parsed %s nodes.', sub_index + 1, count));
+			log(sprintf('成功从 %s 获取 %s 个节点（共 %s 个）。', url, count, length(nodes)));
+			progress(sprintf('订阅 %d：解析出 %s 个节点。', sub_index + 1, count));
 		}
 	}
 
 	if (isEmpty(node_result)) {
 		if (dup_only_groups > 0 && !failed_subscriptions) {
-			log('Nothing to add: every node already exists (duplicates).');
-			progress('NOTE: every node of the selected subscription already exists (duplicates), nothing was added or changed.');
+			log('无需新增：所有节点均已存在（重复）。');
+			progress('提示：所选订阅的节点均已存在（重复），未新增也未改动。');
 		}
 		else {
-			log('Failed to update subscriptions: no valid node found.');
-			progress('FAILED: no valid node was parsed; existing subscription nodes were left unchanged.');
+			log('订阅更新失败：未找到有效节点。');
+			progress('失败：没有解析出有效节点，原有订阅节点保持不变。');
 		}
 
 		if (service_was_stopped) {
-			log('Starting service...');
+			log('正在启动服务…');
 			const start_status = service_action('start');
 			service_was_stopped = (start_status !== 0);
 
 			if (service_was_stopped) {
-				log(sprintf('Failed to restore HomeProxy after an unsuccessful subscription update (status %s).', start_status));
-				progress(sprintf('WARNING: HomeProxy start returned status %s after the subscription failure.', start_status));
+				log(sprintf('订阅更新失败后恢复 HomeProxy 启动失败（状态 %s）。', start_status));
+				progress(sprintf('警告：订阅失败后 HomeProxy 启动返回状态 %s。', start_status));
 			}
 		}
 
@@ -880,7 +884,7 @@ function main() {
 			uci.delete(uciconfig, cfg['.name']);
 			removed++;
 
-			log(sprintf('Removing node: %s.', cfg.label || cfg['name']));
+			log(sprintf('移除节点：%s。', cfg.label || cfg['name']));
 		} else {
 			const refreshedNode = node_cache[cfg.grouphash][cfg['.name']];
 			if (refreshedNode.tls === '1') {
@@ -912,7 +916,7 @@ function main() {
 			map(keys(node), (v) => uci.set(uciconfig, nameHash, v, node[v]));
 
 			added++;
-			log(sprintf('Adding node: %s.', node.label));
+			log(sprintf('新增节点：%s。', node.label));
 		});
 	uci.commit(uciconfig);
 
@@ -928,55 +932,55 @@ function main() {
 	}
 
 	if (need_restart) {
-		log('Restarting service...');
+		log('正在重启服务…');
 		service_action('stop');
 		const start_status = service_action('start');
 
 		if (start_status !== 0) {
 			service_was_stopped = true;
-			log(sprintf('Failed to start HomeProxy after subscription update (status %s).', start_status));
-			progress(sprintf('FAILED: HomeProxy did not start successfully (status %s).', start_status));
+			log(sprintf('订阅更新后 HomeProxy 启动失败（状态 %s）。', start_status));
+			progress(sprintf('失败：HomeProxy 未能成功启动（状态 %s）。', start_status));
 			return false;
 		}
 
 		service_was_stopped = false;
 	}
 
-	log(sprintf('%s nodes added, %s removed.', added, removed));
-	log('Successfully updated subscriptions.');
+	log(sprintf('新增 %s 个节点，移除 %s 个节点。', added, removed));
+	log('订阅更新成功。');
 
 	if (failed_subscriptions)
-		progress(sprintf('WARNING: %s subscription(s) failed or contained no valid nodes; their existing nodes were kept.', failed_subscriptions));
+		progress(sprintf('警告：%s 个订阅拉取失败或没有有效节点，其原有节点已保留。', failed_subscriptions));
 	else
-		progress(sprintf('COMPLETE: %s nodes added, %s removed.', added, removed));
+		progress(sprintf('完成：新增 %s 个节点，移除 %s 个节点。', added, removed));
 
 	return { success: true, failed: failed_subscriptions, added, removed };
 }
 
 if (invalid_group_argument) {
-	progress('FAILED: invalid subscription group selector.');
+	progress('失败：订阅分组参数无效。');
 	exit(2);
 }
 
 if (invalid_group_argument) {
-	progress('FAILED: arguments must be one or more 32-character subscription MD5 hashes.');
+	progress('失败：参数必须是一个或多个 32 位订阅 MD5 值。');
 	exit(2);
 }
 if (isEmpty(update_subscription_urls)) {
 	if (has_group_filter) {
-		log('No subscription URL matches the requested subscription group hash list.');
-		progress('FAILED: none of the requested subscription groups exists.');
+		log('没有订阅链接匹配所请求的订阅分组。');
+		progress('失败：所请求的订阅分组都不存在。');
 		exit(1);
 	}
-	log('No subscription URL configured; skipping subscription update.');
-	progress('SKIPPED: no subscription URL configured.');
+	log('未配置订阅链接，跳过订阅更新。');
+	progress('已跳过：未配置订阅链接。');
 	exit(0);
 }
 if (has_group_filter) {
 	for(let hash in requested_group_hashes) {
 		if(!(hash in matched_group_hashes)) {
-			log(sprintf('Requested subscription group %s was not found.',hash));
-			progress(sprintf('FAILED: subscription group %s no longer exists.',hash));
+			log(sprintf('未找到所请求的订阅分组 %s。',hash));
+			progress(sprintf('失败：订阅分组 %s 已不存在。',hash));
 			exit(1);
 		}
 	}
@@ -987,33 +991,33 @@ try {
 
 	if (!result || result.success !== true) {
 		if (service_was_stopped) {
-			log('Retrying HomeProxy start after an unsuccessful update...');
+			log('更新未成功，正在重试启动 HomeProxy…');
 			const retry_status = service_action('start');
 			service_was_stopped = (retry_status !== 0);
 
 			if (service_was_stopped)
-				log(sprintf('HomeProxy start retry failed (status %s).', retry_status));
+				log(sprintf('HomeProxy 重试启动失败（状态 %s）。', retry_status));
 		}
 
-		progress('FAILED: subscription update did not complete.');
+		progress('失败：订阅更新未完成。');
 		exit(1);
 	}
 } catch(e) {
-	log('[FATAL ERROR] An error occurred during updating subscriptions:');
+	log('[致命错误] 更新订阅时发生错误：');
 	log(sprintf('%s: %s', e.type || 'Error', e.message || e));
 
 	if (e.stacktrace && length(e.stacktrace))
 		log(e.stacktrace[0].context || '');
 
-	progress(sprintf('FAILED: %s', e.message || e));
+	progress(sprintf('失败：%s', e.message || e));
 
 	if (service_was_stopped) {
-		log('Starting service after failed update...');
+		log('更新失败，正在启动服务…');
 		const restore_status = service_action('start');
 		service_was_stopped = (restore_status !== 0);
 
 		if (service_was_stopped)
-			log(sprintf('HomeProxy restore attempt failed (status %s).', restore_status));
+			log(sprintf('HomeProxy 恢复启动失败（状态 %s）。', restore_status));
 	}
 
 	exit(1);

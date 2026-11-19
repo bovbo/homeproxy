@@ -192,7 +192,7 @@ function hpToast(title, detail, kind) {
 /* 从更新日志里挑出和结果有关的行 */
 function hpUpdateSummary(text) {
 	const keep = String(text || '').split('\n').filter((l) => !/ubus call service delete/.test(l)).filter((l) =>
-		/Successfully fetched|No valid node|Failed|failed|Unsupported|Invalid|Skipping|nodes added|WARNING|FAILED|Adding node|Removing node/.test(l));
+		/成功|没有有效|未找到有效|失败|警告|不支持|无效|跳过|提示|完成|新增|移除|已跳过|致命错误/.test(l));
 	return keep.slice(-14).join('\n');
 }
 
@@ -215,7 +215,7 @@ function runSubUpdate(type, btn) {
 			callSubUpdateStatus(type).then((st) => {
 				if (st?.state === 'success') {
 					const sum = hpUpdateSummary(st?.message);
-					const bad = /No valid node|Failed|failed|Unsupported|Invalid|WARNING|FAILED/.test(sum);
+					const bad = /失败|警告|致命错误/.test(sum);
 					if (bad) {
 						hpToast('订阅更新完成，但有订阅没拉到节点', sum + '\n\n（关闭本提示后请按 Ctrl+F5 刷新页面）', 'err');
 						release();
