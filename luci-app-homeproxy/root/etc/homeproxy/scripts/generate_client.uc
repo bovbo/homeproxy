@@ -427,11 +427,18 @@ function generate_outbound(node) {
 	/* 跳板：本节点自己，tag 加 -hop；真正对外的 tag 给落地节点配置，并 detour 到跳板 */
 	const hop_tag = node_out_tag(node['.name']) + '-hop';
 
-	if (!outbound_tag_defined(hop_tag)) {
-		if (!config.outbounds)
-			config.outbounds = [];
+	if (!config.outbounds)
+		config.outbounds = [];
+
+	let hop_exists = false;
+	for (let o in config.outbounds)
+		if (o && o.tag === hop_tag) {
+			hop_exists = true;
+			break;
+		}
+
+	if (!hop_exists)
 		push(config.outbounds, generate_outbound_raw(node, { tag: hop_tag }));
-	}
 
 	return generate_outbound_raw(landing, { tag: node_out_tag(node['.name']), detour: hop_tag, landing: true });
 }
