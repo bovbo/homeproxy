@@ -118,6 +118,7 @@ function core_key(c) {
 }
 
 const manual_core = {}, other_core = {}, run_core = {};
+let dup_only_groups = 0;
 
 const ubus = connect();
 const sing_features = ubus.call('luci.homeproxy', 'singbox_get_features', {}) || {};
@@ -757,7 +758,7 @@ function main() {
 		if (length(nodes) && type(nodes[0]) === 'object' && nodes[0].server && nodes[0].method)
 			map(nodes, (_, i) => nodes[i].nodetype = 'sip008');
 
-		let count = 0;
+		let count = 0, dup_count = 0;
 		for (let node in nodes) {
 			let config;
 			if (!isEmpty(node))
@@ -774,15 +775,18 @@ function main() {
 			const coreKey = core_key(config);
 			if (manual_core[coreKey]) {
 				log(sprintf('Skipping duplicate node (same as a manually added node): %s.', config.label));
+				dup_count++;
 				continue;
 			}
 			if (run_core[coreKey] && run_core[coreKey] !== groupHash) {
 				log(sprintf('Skipping duplicate node (already in another subscription): %s.', config.label));
+				dup_count++;
 				continue;
 			}
 			if (has_group_filter && other_core[coreKey] && other_core[coreKey] !== groupHash &&
 			    !requested_group_hashes[other_core[coreKey]]) {
 				log(sprintf('Skipping duplicate node (already in another subscription): %s.', config.label));
+				dup_count++;
 				continue;
 			}
 
@@ -813,7 +817,14 @@ function main() {
 			}
 		}
 
-		if (count == 0) {
+		if (count == 0 && dup_count > 0) {
+			/* every node of this subscription already exists elsewhere: not a failure */
+			log(sprintf('All %s nodes of %s already exist (duplicates), nothing to add.', dup_count, url));
+			progress(sprintf('Subscription %d: all %s nodes already exist, nothing to add.', sub_index + 1, dup_count));
+			node_cache[groupHash]['__all_duplicate__'] = true;
+			dup_only_groups++;
+		}
+		else if (count == 0) {
 			failed_subscriptions++;
 			log(sprintf('No valid node found in %s.', url));
 			progress(sprintf('No valid nodes in subscription %d; its existing nodes will be kept.', sub_index + 1));
@@ -825,8 +836,14 @@ function main() {
 	}
 
 	if (isEmpty(node_result)) {
-		log('Failed to update subscriptions: no valid node found.');
-		progress('FAILED: no valid node was parsed; existing subscription nodes were left unchanged.');
+		if (dup_only_groups > 0 && !failed_subscriptions) {
+			log('Nothing to add: every node already exists (duplicates).');
+			progress('NOTE: every node of the selected subscription already exists (duplicates), nothing was added or changed.');
+		}
+		else {
+			log('Failed to update subscriptions: no valid node found.');
+			progress('FAILED: no valid node was parsed; existing subscription nodes were left unchanged.');
+		}
 
 		if (service_was_stopped) {
 			log('Starting service...');
