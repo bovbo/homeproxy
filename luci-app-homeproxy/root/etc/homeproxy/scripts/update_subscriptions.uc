@@ -386,7 +386,26 @@ function parse_uri(uri) {
 				ss_raw_user = substr(ss_payload, 0, ss_at_index);
 				ss_payload = substr(ss_payload, ss_at_index + 1);
 			}
-			url = parseURL('http://' + ss_payload + ss_fragment) || {};
+			/* Parse host/port/query/fragment manually: parseURL fails on bracketed IPv6 hosts. */
+			let ss_query = '';
+			const ss_q_index = index(ss_payload, '?');
+			if (ss_q_index >= 0) {
+				ss_query = substr(ss_payload, ss_q_index + 1);
+				ss_payload = substr(ss_payload, 0, ss_q_index);
+			}
+			ss_payload = replace(ss_payload, /\/+$/, '');
+			const ss_hp = match(ss_payload, /^\[([^\]]+)\]:([0-9]+)$/) || match(ss_payload, /^([^:\[\]]+):([0-9]+)$/);
+			url = {
+				hostname: ss_hp ? ss_hp[1] : null,
+				port: ss_hp ? ss_hp[2] : null,
+				hash: length(ss_fragment) > 1 ? substr(ss_fragment, 1) : null,
+				search: ss_query ? ('?' + ss_query) : null,
+				searchParams: {}
+			};
+			if (ss_query) {
+				const ss_params = parseURL('http://x/?' + ss_query);
+				if (ss_params && ss_params.searchParams) url.searchParams = ss_params.searchParams;
+			}
 			let ss_userinfo = [];
 			if (ss_raw_user) {
 				const decoded_userinfo = decode_ss_base64(ss_raw_user);
