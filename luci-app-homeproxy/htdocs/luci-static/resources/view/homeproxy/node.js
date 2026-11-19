@@ -161,27 +161,70 @@ const callSubUpdateStatus = rpc.declare({
 });
 
 /* 订阅更新放到路由器后台执行，网页只做短请求轮询：可以随便切换标签页，不会再卡在「正在刷新」 */
+/* 悬浮提示：固定在窗口上方，点哪里都看得到，不用拉回页头 */
+const HP_TOAST_CSS = `
+#hp-toast { position: fixed; z-index: 100000; top: 64px; left: 50%; transform: translateX(-50%); width: min(720px, 92vw); box-sizing: border-box; padding: 12px 16px; border: 3px solid #1769aa; border-radius: 10px; background: #dceeff; color: #10243a; box-shadow: 0 6px 24px rgba(0,0,0,.35); font-size: 14px; line-height: 1.5; }
+#hp-toast.hp-err { border-color: #d64545; background: #ffe3e3; color: #3a1010; }
+#hp-toast.hp-ok { border-color: #2e8b3d; background: #e0f6e3; color: #10331a; }
+#hp-toast .hp-toast-title { font-weight: 800; margin-right: 24px; }
+#hp-toast pre { margin: 6px 0 0; padding: 6px 8px; max-height: 40vh; overflow: auto; white-space: pre-wrap; word-break: break-all; border-radius: 6px; background: rgba(255,255,255,.65); color: inherit; font-size: 12px; }
+#hp-toast .hp-toast-x { position: absolute; top: 6px; right: 10px; cursor: pointer; border: 0; background: transparent; color: inherit; font-size: 20px; line-height: 1; font-weight: 700; }
+`;
+function hpToast(title, detail, kind) {
+	let css = document.getElementById('hp-toast-css');
+	if (!css) { css = E('style', { 'id': 'hp-toast-css' }); document.head.appendChild(css); }
+	css.textContent = HP_TOAST_CSS;
+
+	let box = document.getElementById('hp-toast');
+	if (box) box.remove();
+
+	const kids = [
+		E('button', { 'type': 'button', 'class': 'hp-toast-x', 'title': '关闭', 'click': () => { const b = document.getElementById('hp-toast'); if (b) b.remove(); } }, '×'),
+		E('div', { 'class': 'hp-toast-title' }, title)
+	];
+	if (detail) kids.push(E('pre', {}, detail));
+
+	box = E('div', { 'id': 'hp-toast', 'class': kind ? 'hp-' + kind : '' }, kids);
+	document.body.appendChild(box);
+	return box;
+}
+
+/* 从更新日志里挑出和结果有关的行 */
+function hpUpdateSummary(text) {
+	const keep = String(text || '').split('\n').filter((l) =>
+		/Successfully fetched|No valid node|Failed|failed|Unsupported|Invalid|Skipping|nodes added|WARNING|FAILED|Adding node|Removing node/.test(l));
+	return keep.slice(-14).join('\n');
+}
+
 function runSubUpdate(type, btn) {
 	if (btn) btn.disabled = true;
 	const release = () => { if (btn) btn.disabled = false; };
 
 	return callSubUpdateStart(type).then((res) => {
 		if (!res?.result) {
-			ui.addNotification(null, E('p', '无法启动后台更新：%s'.format(res?.error || '未知错误')));
+			hpToast('无法启动后台更新', String(res?.error || '未知错误'), 'err');
 			release();
 			return;
 		}
 
-		ui.addNotification(null, E('p', '已在后台开始更新订阅，可以离开本页；完成后本页会自动刷新。'));
+		hpToast('正在后台更新订阅……', '可以离开本页，完成后这里会提示结果。', '');
 
 		let tries = 0;
 		const tick = () => {
 			tries++;
 			callSubUpdateStatus(type).then((st) => {
 				if (st?.state === 'success') {
-					location.reload();
+					const sum = hpUpdateSummary(st?.message);
+					const bad = /No valid node|Failed|failed|Unsupported|Invalid|WARNING|FAILED/.test(sum);
+					if (bad) {
+						hpToast('订阅更新完成，但有订阅没拉到节点', sum + '\n\n（关闭本提示后请按 Ctrl+F5 刷新页面）', 'err');
+						release();
+					} else {
+						hpToast('订阅更新成功，正在刷新页面……', sum, 'ok');
+						setTimeout(() => location.reload(), 2500);
+					}
 				} else if (st?.state === 'error') {
-					ui.addNotification(null, E('p', '订阅更新失败：%s（详情见服务状态里的日志）'.format(st?.message || '')));
+					hpToast('订阅更新失败', hpUpdateSummary(st?.message) || String(st?.message || ''), 'err');
 					release();
 				} else if (tries < 200) {
 					setTimeout(tick, 3000);
@@ -195,7 +238,7 @@ function runSubUpdate(type, btn) {
 		};
 		setTimeout(tick, 3000);
 	}).catch((err) => {
-		ui.addNotification(null, E('p', _('An error occurred during updating subscriptions: %s').format(err)));
+		hpToast('更新订阅出错', String(err), 'err');
 		release();
 	});
 }
