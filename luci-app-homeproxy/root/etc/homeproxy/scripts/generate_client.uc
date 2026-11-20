@@ -1099,7 +1099,26 @@ if (!isEmpty(main_node)) {
 	 * then connects over IPv4. Direct (China) domains keep full dual-stack DNS.
 	 */
 	/* uci set homeproxy.config.proxy_ipv6=1 : keep IPv6 for proxied domains (only for IPv6-capable nodes) */
-	const proxy_keep_ipv6 = (uci.get(uciconfig, ucimain, 'proxy_ipv6') === '1');
+	/*
+	 * 自动：当前主节点（或它的后置落地）的服务器地址本身是 IPv6 地址、且没有走前置（Worker）时，
+	 * 说明它能直连 IPv6，自动放行 AAAA；选用 Worker/CDN 等节点时仍然屏蔽 AAAA，互不影响。
+	 */
+	function main_exit_is_ipv6() {
+		if (isEmpty(main_node) || main_node === 'urltest' || main_node === 'nil')
+			return false;
+
+		const mcfg = uci.get_all(uciconfig, main_node);
+
+		if (type(mcfg) !== 'object')
+			return false;
+
+		const exit_cfg = chain_next_cfg(mcfg) || mcfg;
+		const addr = '' + (exit_cfg.address ?? '');
+
+		return index(addr, ':') >= 0 && isEmpty(trim('' + (mcfg.chain_node ?? '')));
+	}
+
+	const proxy_keep_ipv6 = (uci.get(uciconfig, ucimain, 'proxy_ipv6') === '1') || main_exit_is_ipv6();
 
 	function push_no_aaaa(rule_set) {
 		if (ipv6_support !== '1' || proxy_keep_ipv6)
